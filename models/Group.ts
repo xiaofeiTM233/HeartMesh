@@ -4,7 +4,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 // Group 文档接口
 export interface IGroup extends Document {
   name: string;
-  highlightColor: string; // 组的高亮颜色
+  color?: string; // 组的高亮颜色，可选，默认蓝色
   pointIds: mongoose.Types.ObjectId[]; // 组内点 ID 数组
   lineIds: mongoose.Types.ObjectId[]; // 组内线 ID 数组
   createdAt: Date;
@@ -21,7 +21,7 @@ const GroupSchema: Schema = new Schema(
     },
     color: {
       type: String,
-      required: [true, '高亮颜色是必需的'],
+      default: '#3b82f6', // 默认蓝色
     },
     pointIds: [{
       type: Schema.Types.ObjectId,

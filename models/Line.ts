@@ -1,6 +1,5 @@
 // models/Line.ts
 import mongoose, { Schema, Document } from 'mongoose';
-import { IPoint } from './Point';
 
 // Line 文档接口
 export interface ILine extends Document {
@@ -14,7 +13,7 @@ export interface ILine extends Document {
     x: number; // 终点 x 坐标
     y: number; // 终点 y 坐标
   };
-  label?: string; // 可选的标签
+  group?: mongoose.Types.ObjectId; // 分组ID (ObjectId类型)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,8 +51,9 @@ const LineSchema: Schema = new Schema(
         required: [true, '终点 y 坐标是必需的'],
       },
     },
-    label: {
-      type: String,
+    group: {
+      type: Schema.Types.ObjectId,
+      ref: 'Group',
       required: false,
     },
   },

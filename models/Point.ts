@@ -5,7 +5,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IPoint extends Document {
   x: number;
   y: number;
-  label?: string; // 可选的标签
+  group?: mongoose.Types.ObjectId; // 分组ID (ObjectId类型)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,8 +21,9 @@ const PointSchema: Schema = new Schema(
       type: Number,
       required: [true, 'y 坐标是必需的'],
     },
-    label: {
-      type: String,
+    group: {
+      type: Schema.Types.ObjectId,
+      ref: 'Group',
       required: false,
     },
   },
