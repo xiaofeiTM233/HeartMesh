@@ -2,16 +2,18 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Stage, Layer, RegularPolygon } from 'react-konva';
+import { Stage, Layer, RegularPolygon, Line, Label, Tag, Text } from 'react-konva';
 import { KonvaEventObject } from 'konva/lib/Node';
 import Konva from 'konva';
-import { Switch, App } from 'antd';
+import { App, FloatButton } from 'antd';
+import { LinkOutlined, DragOutlined, BorderOutlined, SettingOutlined } from '@ant-design/icons';
 import HexCell from './HexCell';
 import EditSidebar from './EditSidebar';
 import {
   HEX_SIZE,
   axialToPixel,
   pixelToOffset,
+  offsetToAxial,
 } from '@/lib/hexGrid';
 import type { PointData, LineData, GroupData } from '@/lib/types';
 
@@ -35,7 +37,54 @@ const MAX_SCALE = 3;
 // 默认网格范围 64x64（-32 到 +32）
 const GRID_RANGE = 32;
 
-export default function HexGrid({ 
+// 连线颜色配置
+const LINE_COLOR = '#FFD700'; // 金色
+const LINE_WIDTH = 3;
+const LINE_OPACITY = 0.9;
+
+// 连线组件
+interface LineConnectionProps {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  label: string;
+  onHover?: () => void;
+  onUnhover?: () => void;
+}
+
+function LineConnection({ startX, startY, endX, endY, label, onHover, onUnhover }: LineConnectionProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  return (
+    <>
+      {/* 连线本体 */}
+      <Line
+        points={[startX, startY, endX, endY]}
+        stroke={LINE_COLOR}
+        strokeWidth={isHovered ? LINE_WIDTH + 2 : LINE_WIDTH}
+        opacity={isHovered ? 1 : LINE_OPACITY}
+        lineCap="round"
+        lineJoin="round"
+        onMouseEnter={(e) => {
+          e.cancelBubble = true;
+          setIsHovered(true);
+          onHover?.();
+        }}
+        onMouseLeave={(e) => {
+          e.cancelBubble = true;
+          setIsHovered(false);
+          onUnhover?.();
+        }}
+        shadowColor={LINE_COLOR}
+        shadowBlur={isHovered ? 10 : 0}
+        shadowOpacity={0.6}
+      />
+    </>
+  );
+}
+
+export default function HexGrid({
   initialScale = DEFAULT_SCALE,
   minScale = MIN_SCALE,
   maxScale = MAX_SCALE,
@@ -48,10 +97,11 @@ export default function HexGrid({
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [stagePos, setStagePos] = useState({ x: stageSize.width / 2, y: stageSize.height / 2 });
   const [showGrid, setShowGrid] = useState(false); // 网格显示开关
+  const [showLines, setShowLines] = useState(true); // 连线显示开关
   const [dragMode, setDragMode] = useState(false); // 拖动模式开关
   const [selectedPoint, setSelectedPoint] = useState<PointData | null>(null); // 选中的点
   const [sidebarOpen, setSidebarOpen] = useState(false); // 侧边栏开关
-  const [showToolbar, setShowToolbar] = useState(true); // 工具栏开关
+  const [hoveredLineId, setHoveredLineId] = useState<string | null>(null); // 当前hover的线ID
   const stageRef = useRef<Konva.Stage>(null);
   
   // 创建坐标到点的映射
@@ -186,52 +236,20 @@ export default function HexGrid({
   
   // 处理格子拖动结束
   const handleCellDragEnd = useCallback(async (point: PointData, newCoords: { x: number; y: number }) => {
-    // 检查新坐标是否已有其他点
-    const existingPoint = points.find(p => 
-      p._id !== point._id && p.x === newCoords.x && p.y === newCoords.y
-    );
-    
-    if (existingPoint) {
-      message.warning('该位置已有其他格子');
-      return;
-    }
-    
-    // 检查坐标是否改变
-    if (newCoords.x === point.x && newCoords.y === point.y) {
-      return;
-    }
-    
+    // 不再自动重新定位，只更新本地状态
     try {
-      // 更新数据库
-      const response = await fetch('/api/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'point',
-          action: 'update',
-          id: point._id,
-          data: { x: newCoords.x, y: newCoords.y },
-        }),
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        // 更新本地状态
-        setPoints(prev => prev.map(p => 
-          p._id === point._id 
-            ? { ...p, x: newCoords.x, y: newCoords.y }
-            : p
-        ));
-        message.success('坐标更新成功');
-      } else {
-        message.error('更新失败');
-      }
+      // 更新本地状态
+      setPoints(prev => prev.map(p =>
+        p._id === point._id
+          ? { ...p, x: newCoords.x, y: newCoords.y }
+          : p
+      ));
+      message.success('点位置已更新');
     } catch (error) {
       console.error('更新坐标失败:', error);
       message.error('更新失败');
     }
-  }, [points, message]);
+  }, [message]);
   
   // 处理网格空白位置点击 - 创建新点
   const handleGridClick = useCallback(async (e: KonvaEventObject<MouseEvent>) => {
@@ -307,47 +325,31 @@ export default function HexGrid({
         backgroundColor: BG_COLOR 
       }} />
       
-      {/* 悬浮操作栏 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 16,
-          left: 16,
-          padding: '12px 16px',
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-          borderRadius: 8,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          zIndex: 1000,
-          transition: 'all 0.3s ease',
-          ...(showToolbar && {
-            width: 'auto',
-            opacity: 1,
-          }),
-          ...(!showToolbar && {
-            width: 40,
-            height: 40,
-            opacity: 0.7,
-          }),
-        }}
-        onClick={() => setShowToolbar(!showToolbar)}
-      >
-        {showToolbar ? (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14, color: '#333' }}>显示网格</span>
-              <Switch checked={showGrid} onChange={setShowGrid} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14, color: '#333' }}>拖动模式</span>
-              <Switch checked={dragMode} onChange={setDragMode} />
-            </div>
-          </>
-        ) : (
-          <span style={{ fontSize: 18, color: '#333' }}>⚙️</span>
-        )}
+      {/* 左上角悬浮操作按钮 */}
+      <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000, pointerEvents: 'none' }}>
+        <FloatButton.Group
+          shape="circle"
+          trigger="click"
+          icon={<SettingOutlined />}
+          tooltip="设置"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <FloatButton
+            icon={<BorderOutlined />}
+            tooltip={`显示网格 (${showGrid ? '开' : '关'})`}
+            onClick={() => setShowGrid(!showGrid)}
+          />
+          <FloatButton
+            icon={<LinkOutlined />}
+            tooltip={`显示连线 (${showLines ? '开' : '关'})`}
+            onClick={() => setShowLines(!showLines)}
+          />
+          <FloatButton
+            icon={<DragOutlined />}
+            tooltip={`拖动模式 (${dragMode ? '开' : '关'})`}
+            onClick={() => setDragMode(!dragMode)}
+          />
+        </FloatButton.Group>
       </div>
       
       <Stage
@@ -381,6 +383,38 @@ export default function HexGrid({
           ))}
         </Layer>
         
+        {/* 中层：连线 */}
+        {showLines && (
+          <Layer>
+            {lines.map((line) => {
+              // 将偏移坐标转换为轴向坐标，再转换为像素坐标
+              const startAxial = offsetToAxial(line.startPoint.x, line.startPoint.y);
+              const endAxial = offsetToAxial(line.endPoint.x, line.endPoint.y);
+              const startPos = axialToPixel(startAxial.q, startAxial.r);
+              const endPos = axialToPixel(endAxial.q, endAxial.r);
+              
+              // 查找起点和终点的名称
+              const startPointData = points.find(p => p._id === line.startPoint.id);
+              const endPointData = points.find(p => p._id === line.endPoint.id);
+              const startName = startPointData?.name || `点${line.startPoint.id.slice(-4)}`;
+              const endName = endPointData?.name || `点${line.endPoint.id.slice(-4)}`;
+              
+              return (
+                <LineConnection
+                  key={line._id}
+                  startX={startPos.x}
+                  startY={startPos.y}
+                  endX={endPos.x}
+                  endY={endPos.y}
+                  label={line.label || `${startName} → ${endName}`}
+                  onHover={() => setHoveredLineId(line._id)}
+                  onUnhover={() => setHoveredLineId(null)}
+                />
+              );
+            })}
+          </Layer>
+        )}
+        
         {/* 上层：数据格子 */}
         <Layer>
           {points.map(point => (
@@ -396,6 +430,55 @@ export default function HexGrid({
             />
           ))}
         </Layer>
+        
+        {/* 最顶层：Tooltip层 */}
+        {hoveredLineId && (
+          <Layer name="tooltip-layer">
+            {lines.map((line) => {
+              const startAxial = offsetToAxial(line.startPoint.x, line.startPoint.y);
+              const endAxial = offsetToAxial(line.endPoint.x, line.endPoint.y);
+              const startPos = axialToPixel(startAxial.q, startAxial.r);
+              const endPos = axialToPixel(endAxial.q, endAxial.r);
+              
+              // 查找起点和终点的名称
+              const startPointData = points.find(p => p._id === line.startPoint.id);
+              const endPointData = points.find(p => p._id === line.endPoint.id);
+              const startName = startPointData?.name || `点${line.startPoint.id.slice(-4)}`;
+              const endName = endPointData?.name || `点${line.endPoint.id.slice(-4)}`;
+              const label = line.label || `${startName} → ${endName}`;
+              
+              // 计算线的中点位置
+              const midX = (startPos.x + endPos.x) / 2;
+              const midY = (startPos.y + endPos.y) / 2;
+              
+              return (
+                <Label
+                  key={`tooltip-${line._id}`}
+                  x={midX}
+                  y={midY}
+                  offsetX={0}
+                  offsetY={0}
+                >
+                  <Tag
+                    fill="rgba(0, 0, 0, 0.75)"
+                    cornerRadius={4}
+                    pointerDirection="down"
+                    pointerWidth={8}
+                    pointerHeight={8}
+                    lineJoin="round"
+                  />
+                  <Text
+                    text={label}
+                    fontFamily="Arial"
+                    fontSize={12}
+                    padding={6}
+                    fill="white"
+                  />
+                </Label>
+              );
+            })}
+          </Layer>
+        )}
       </Stage>
       
       {/* 编辑侧边栏 */}
