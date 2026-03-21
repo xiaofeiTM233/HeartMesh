@@ -5,14 +5,15 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Stage, Layer, RegularPolygon } from 'react-konva';
 import { KonvaEventObject } from 'konva/lib/Node';
 import Konva from 'konva';
-import { Switch, Modal, Form, Select, Input, Button, App } from 'antd';
+import { Switch, App } from 'antd';
 import HexCell from './HexCell';
-import { 
-  HEX_SIZE, 
+import EditSidebar from './EditSidebar';
+import {
+  HEX_SIZE,
   axialToPixel,
   pixelToOffset,
 } from '@/lib/hexGrid';
-import type { PointData, GroupData } from '@/lib/types';
+import type { PointData, LineData, GroupData } from '@/lib/types';
 
 // 颜色配置
 const BG_COLOR = '#9ca3af';      // 灰色背景
@@ -42,15 +43,15 @@ export default function HexGrid({
   const { message } = App.useApp();
   const [points, setPoints] = useState<PointData[]>([]);
   const [groups, setGroups] = useState<GroupData[]>([]);
+  const [lines, setLines] = useState<LineData[]>([]);
   const [scale, setScale] = useState(initialScale);
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [stagePos, setStagePos] = useState({ x: stageSize.width / 2, y: stageSize.height / 2 });
   const [showGrid, setShowGrid] = useState(false); // 网格显示开关
   const [dragMode, setDragMode] = useState(false); // 拖动模式开关
-  const [editingPoint, setEditingPoint] = useState<PointData | null>(null); // 正在编辑的点
-  const [editModalOpen, setEditModalOpen] = useState(false); // 编辑面板开关
-  const [groupSearchValue, setGroupSearchValue] = useState(''); // 分组搜索值
-  const [form] = Form.useForm();
+  const [selectedPoint, setSelectedPoint] = useState<PointData | null>(null); // 选中的点
+  const [sidebarOpen, setSidebarOpen] = useState(false); // 侧边栏开关
+  const [showToolbar, setShowToolbar] = useState(true); // 工具栏开关
   const stageRef = useRef<Konva.Stage>(null);
   
   // 创建坐标到点的映射
@@ -94,9 +95,11 @@ export default function HexGrid({
         if (result.success && result.data) {
           const apiPoints = result.data.points || [];
           const apiGroups = result.data.groups || [];
+          const apiLines = result.data.lines || [];
           
           setPoints(apiPoints);
           setGroups(apiGroups);
+          setLines(apiLines);
         } else {
           throw new Error('API returned error');
         }
@@ -113,6 +116,7 @@ export default function HexGrid({
           { _id: 'g1', name: '组1', color: '#ff6b6b', pointIds: ['1', '2', '5'], lineIds: [] },
           { _id: 'g2', name: '组2', color: '#4ecdc4', pointIds: ['3'], lineIds: [] },
         ]);
+        setLines([]);
       }
     }
     fetchData();
@@ -176,16 +180,9 @@ export default function HexGrid({
   
   // 处理格子点击
   const handleCellClick = useCallback((point: PointData) => {
-    setEditingPoint(point);
-    setEditModalOpen(true);
-    // 延迟设置表单值，确保 Form 已渲染
-    setTimeout(() => {
-      form.setFieldsValue({
-        name: point.name || '',
-        group: point.group || undefined,
-      });
-    }, 0);
-  }, [form]);
+    setSelectedPoint(point);
+    setSidebarOpen(true);
+  }, []);
   
   // 处理格子拖动结束
   const handleCellDragEnd = useCallback(async (point: PointData, newCoords: { x: number; y: number }) => {
@@ -235,59 +232,6 @@ export default function HexGrid({
       message.error('更新失败');
     }
   }, [points, message]);
-  
-  // 处理编辑表单提交
-  const handleEditSubmit = useCallback(async (values: { name?: string; group?: string }) => {
-    if (!editingPoint) return;
-    
-    try {
-      const response = await fetch('/api/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'point',
-          action: 'update',
-          id: editingPoint._id,
-          data: {
-            name: values.name,
-            group: values.group,
-          },
-        }),
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        // 更新本地状态
-        setPoints(prev => prev.map(p => 
-          p._id === editingPoint._id 
-            ? { ...p, name: values.name, group: values.group }
-            : p
-        ));
-        
-        // 如果有分组，更新分组数据
-        if (values.group) {
-          const updatedGroup = groups.find(g => g._id === values.group);
-          if (updatedGroup && !updatedGroup.pointIds.includes(editingPoint._id)) {
-            setGroups(prev => prev.map(g => 
-              g._id === values.group 
-                ? { ...g, pointIds: [...g.pointIds, editingPoint._id] }
-                : g
-            ));
-          }
-        }
-        
-        message.success('保存成功');
-        setEditModalOpen(false);
-        setEditingPoint(null);
-      } else {
-        message.error('保存失败');
-      }
-    } catch (error) {
-      console.error('保存失败:', error);
-      message.error('保存失败');
-    }
-  }, [editingPoint, groups, message]);
   
   // 处理网格空白位置点击 - 创建新点
   const handleGridClick = useCallback(async (e: KonvaEventObject<MouseEvent>) => {
@@ -364,27 +308,46 @@ export default function HexGrid({
       }} />
       
       {/* 悬浮操作栏 */}
-      <div style={{
-        position: 'absolute',
-        top: 16,
-        right: 16,
-        padding: '12px 16px',
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        borderRadius: 8,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        zIndex: 1000,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, color: '#333' }}>显示网格</span>
-          <Switch checked={showGrid} onChange={setShowGrid} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, color: '#333' }}>拖动模式</span>
-          <Switch checked={dragMode} onChange={setDragMode} />
-        </div>
+      <div
+        style={{
+          position: 'absolute',
+          top: 16,
+          left: 16,
+          padding: '12px 16px',
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          borderRadius: 8,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          zIndex: 1000,
+          transition: 'all 0.3s ease',
+          ...(showToolbar && {
+            width: 'auto',
+            opacity: 1,
+          }),
+          ...(!showToolbar && {
+            width: 40,
+            height: 40,
+            opacity: 0.7,
+          }),
+        }}
+        onClick={() => setShowToolbar(!showToolbar)}
+      >
+        {showToolbar ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14, color: '#333' }}>显示网格</span>
+              <Switch checked={showGrid} onChange={setShowGrid} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14, color: '#333' }}>拖动模式</span>
+              <Switch checked={dragMode} onChange={setDragMode} />
+            </div>
+          </>
+        ) : (
+          <span style={{ fontSize: 18, color: '#333' }}>⚙️</span>
+        )}
       </div>
       
       <Stage
@@ -435,79 +398,168 @@ export default function HexGrid({
         </Layer>
       </Stage>
       
-      {/* 编辑面板 */}
-      <Modal
-        title="编辑格子"
-        open={editModalOpen}
-        onCancel={() => {
-          setEditModalOpen(false);
-          setEditingPoint(null);
-        }}
-        footer={null}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleEditSubmit}
-        >
-          <Form.Item name="name" label="名称">
-            <Input placeholder="请输入格子名称" />
-          </Form.Item>
-          <Form.Item name="group" label="分组">
-            <Select
-              showSearch
-              placeholder="搜索或创建分组"
-              allowClear
-              filterOption={(input, option) =>
-                (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-              }
-              notFoundContent={
-                groupSearchValue ? (
-                  <Button
-                    type="text"
-                    size="small"
-                    style={{ width: '100%', textAlign: 'left' }}
-                    onClick={async () => {
-                      try {
-                        const response = await fetch('/api/data', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            type: 'group',
-                            action: 'create',
-                            data: { name: groupSearchValue },
-                          }),
-                        });
-                        const result = await response.json();
-                        if (result.success && result.data) {
-                          setGroups(prev => [...prev, result.data]);
-                          form.setFieldValue('group', result.data._id);
-                          setGroupSearchValue('');
-                          message.success('分组创建成功');
-                        }
-                      } catch {
-                        message.error('创建分组失败');
-                      }
-                    }}
-                  >
-                    + 创建新分组 &quot;{groupSearchValue}&quot;
-                  </Button>
-                ) : null
-              }
-              options={groups.map(g => ({
-                label: g.name,
-                value: g._id,
-              }))}
-              onSearch={(value) => setGroupSearchValue(value)}
-            />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block>
-              保存
-            </Button>
-          </Form.Item>
-        </Form>
-      </Modal>
+      {/* 编辑侧边栏 */}
+      {sidebarOpen && (
+        <EditSidebar
+          points={points}
+          lines={lines}
+          groups={groups}
+          selectedPoint={selectedPoint}
+          onClose={() => {
+            setSidebarOpen(false);
+            setSelectedPoint(null);
+          }}
+          onUpdatePoint={async (point, data) => {
+            const response = await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'point',
+                action: 'update',
+                id: point._id,
+                data,
+              }),
+            });
+            const result = await response.json();
+            if (result.success) {
+              const updatedPoint = { ...point, ...data };
+              setPoints(prev => prev.map(p => 
+                p._id === point._id ? updatedPoint : p
+              ));
+              // 同步更新 selectedPoint 以便 UI 立即反映变化
+              setSelectedPoint(updatedPoint);
+            }
+          }}
+          onUpdateLine={async (line, data) => {
+            const response = await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'line',
+                action: 'update',
+                id: line._id,
+                data,
+              }),
+            });
+            const result = await response.json();
+            if (result.success) {
+              setLines(prev => prev.map(l => 
+                l._id === line._id ? { ...l, ...data } : l
+              ));
+            }
+          }}
+          onUpdateGroup={async (group, data) => {
+            const response = await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'group',
+                action: 'update',
+                id: group._id,
+                data,
+              }),
+            });
+            const result = await response.json();
+            if (result.success) {
+              setGroups(prev => prev.map(g => 
+                g._id === group._id ? { ...g, ...data } : g
+              ));
+            }
+          }}
+          onCreateLine={async (data) => {
+            // 根据 ID 查找起点和终点的完整信息
+            const startPt = points.find(p => p._id === data.startPointId);
+            const endPt = points.find(p => p._id === data.endPointId);
+            
+            if (!startPt || !endPt) {
+              console.error('找不到起点或终点');
+              return;
+            }
+            
+            const lineData = {
+              startPoint: { id: startPt._id, x: startPt.x, y: startPt.y },
+              endPoint: { id: endPt._id, x: endPt.x, y: endPt.y },
+              label: data.label,
+            };
+            
+            const response = await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'line',
+                action: 'create',
+                data: lineData,
+              }),
+            });
+            const result = await response.json();
+            if (result.success && result.data) {
+              setLines(prev => [...prev, result.data]);
+            }
+          }}
+          onCreateGroup={async (data) => {
+            const response = await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'group',
+                action: 'create',
+                data,
+              }),
+            });
+            const result = await response.json();
+            if (result.success && result.data) {
+              setGroups(prev => [...prev, result.data]);
+              return result.data;
+            }
+            return null;
+          }}
+          onDeletePoint={async (pointId) => {
+            const response = await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'point',
+                action: 'delete',
+                id: pointId,
+              }),
+            });
+            const result = await response.json();
+            if (result.success) {
+              setPoints(prev => prev.filter(p => p._id !== pointId));
+            }
+          }}
+          onDeleteLine={async (lineId) => {
+            const response = await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'line',
+                action: 'delete',
+                id: lineId,
+              }),
+            });
+            const result = await response.json();
+            if (result.success) {
+              setLines(prev => prev.filter(l => l._id !== lineId));
+            }
+          }}
+          onDeleteGroup={async (groupId) => {
+            const response = await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'group',
+                action: 'delete',
+                id: groupId,
+              }),
+            });
+            const result = await response.json();
+            if (result.success) {
+              setGroups(prev => prev.filter(g => g._id !== groupId));
+            }
+          }}
+        />
+      )}
     </>
   );
 }

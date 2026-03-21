@@ -8,7 +8,7 @@ export interface PointData {
   label?: string;
   avatar?: string;
   name?: string;
-  group?: string;  // 分组ID (string类型,因为MongoDB ObjectId会转换为string)
+  group?: string | null;  // 分组ID (string类型,因为MongoDB ObjectId会转换为string, null表示退出组)
   createdAt?: string;
   updatedAt?: string;
 }
