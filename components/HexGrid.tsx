@@ -437,32 +437,30 @@ export default function HexGrid({
         backgroundColor: BG_COLOR 
       }} />
       
-      {/* 左上角悬浮操作按钮 */}
-      <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000, pointerEvents: 'none' }}>
-        <FloatButton.Group
-          shape="circle"
-          trigger="click"
-          icon={<SettingOutlined />}
-          tooltip="设置"
-          style={{ pointerEvents: 'auto' }}
-        >
-          <FloatButton
-            icon={<BorderOutlined />}
-            tooltip={`显示网格 (${showGrid ? '开' : '关'})`}
-            onClick={() => setShowGrid(!showGrid)}
-          />
-          <FloatButton
-            icon={<LinkOutlined />}
-            tooltip={`显示连线 (${showLines ? '开' : '关'})`}
-            onClick={() => setShowLines(!showLines)}
-          />
-          <FloatButton
-            icon={<DragOutlined />}
-            tooltip={`拖动模式 (${dragMode ? '开' : '关'})`}
-            onClick={() => setDragMode(!dragMode)}
-          />
-        </FloatButton.Group>
-      </div>
+      {/* 设置悬浮按钮 */}
+      <FloatButton.Group
+        shape="circle"
+        trigger="click"
+        icon={<SettingOutlined />}
+        tooltip="设置"
+        style={{ right: 24, bottom: 24 }}
+      >
+        <FloatButton
+          icon={<BorderOutlined />}
+          tooltip={`显示网格 (${showGrid ? '开' : '关'})`}
+          onClick={() => setShowGrid(!showGrid)}
+        />
+        <FloatButton
+          icon={<LinkOutlined />}
+          tooltip={`显示连线 (${showLines ? '开' : '关'})`}
+          onClick={() => setShowLines(!showLines)}
+        />
+        <FloatButton
+          icon={<DragOutlined />}
+          tooltip={`拖动模式 (${dragMode ? '开' : '关'})`}
+          onClick={() => setDragMode(!dragMode)}
+        />
+      </FloatButton.Group>
       
       <Stage
         ref={stageRef}
