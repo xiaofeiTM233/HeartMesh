@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
               { status: 400 }
             );
           }
-          if (!data.position.x || !data.position.y) {
+          if (data.position.x == null || data.position.y == null) {
             return NextResponse.json(
               {
                 success: false,

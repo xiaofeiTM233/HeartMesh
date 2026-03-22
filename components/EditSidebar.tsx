@@ -1,9 +1,10 @@
 // components/EditSidebar.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Form, Input, Button, Select, Collapse, Tag, Space, App, Drawer, Modal, Divider, Empty, ColorPicker } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, LinkOutlined, FolderOutlined, LogoutOutlined } from '@ant-design/icons';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Form, Input, Button, Select, Collapse, Tag, Space, App, Drawer, Modal, Divider, Empty, ColorPicker, DatePicker, InputNumber } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, LinkOutlined, FolderOutlined, LogoutOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import type { PointData } from '@/models/Point';
 import type { LineData } from '@/models/Line';
 import type { GroupData } from '@/models/Group';
@@ -18,8 +19,8 @@ interface EditSidebarProps {
   onUpdateLine: (line: LineData, data: Partial<LineData>) => Promise<void>;
   onUpdateGroup: (group: GroupData, data: Partial<GroupData>) => Promise<void>;
   onCreatePoint: (pointData: PointData) => Promise<void>;
-  onCreateLine: (data: { startPointId: string; endPointId: string; relations?: string[] }) => Promise<void>;
-  onCreateGroup: (data: { name: string; color: string; status?: string }) => Promise<GroupData | null>;
+  onCreateLine: (data: { startPointId: string; endPointId: string; relations?: string[]; status?: string; color?: string }) => Promise<void>;
+  onCreateGroup: (data: { name: string; color: string; status?: string; parent?: string | null }) => Promise<GroupData | null>;
   onDeletePoint: (pointId: string) => Promise<void>;
   onDeleteLine: (lineId: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
@@ -69,14 +70,41 @@ export default function EditSidebar({
     return groups.find(g => g._id === selectedPoint.heart.阵营) || null;
   }, [groups, selectedPoint]);
 
-  // 更新表单值
-  useEffect(() => {
-    if (selectedPoint) {
-      form.setFieldsValue({
-        name: selectedPoint.heart.名字 || '',
-      });
+  // 填充表单值
+  const fillForm = useCallback((point: PointData) => {
+    form.setFieldsValue({
+      positionX: point.position.x,
+      positionY: point.position.y,
+      name: point.heart.名字 || '',
+      avatars: point.heart.头像 || [],
+      nicknames: point.heart.外号 || [],
+      gender: point.heart.性别 || undefined,
+      birthday: point.heart.生日 ? dayjs(point.heart.生日) : undefined,
+      relation: point.heart.关系 || '',
+      generation: point.heart.辈分 || '',
+      identity: point.heart.身份 || '',
+      firstMet: point.heart.初识 ? dayjs(point.heart.初识) : undefined,
+      contact: typeof point.heart.联系 === 'number' ? point.heart.联系 : (point.heart.联系 ? 1 : 0),
+      contacts: point.heart.联系方式 || [],
+      salutation: point.heart.称呼 || '',
+      tags: point.heart.标签 || [],
+      notes: point.heart.备注 || '',
+    });
+  }, [form]);
+
+  // Drawer 打开动画结束后填充表单，确保 Form 已挂载
+  const handleAfterOpenChange = useCallback((open: boolean) => {
+    if (open && selectedPoint) {
+      fillForm(selectedPoint);
     }
-  }, [selectedPoint, form]);
+  }, [selectedPoint, fillForm]);
+
+  // selectedPoint 变化时（非首次挂载）也更新表单
+  useEffect(() => {
+    if (selectedPoint && drawerOpen) {
+      fillForm(selectedPoint);
+    }
+  }, [selectedPoint, drawerOpen, fillForm]);
 
   // 关闭抽屉
   const handleClose = () => {
@@ -87,18 +115,41 @@ export default function EditSidebar({
   };
 
   // 处理点编辑表单提交
-  const handlePointSubmit = async (values: { name?: string }) => {
+  const handlePointSubmit = async (values: Record<string, any>) => {
     if (!selectedPoint) return;
+
+    // 构建更新数据
+    const updateData: Partial<PointData> = {
+      position: {
+        x: values.positionX ?? selectedPoint.position.x,
+        y: values.positionY ?? selectedPoint.position.y,
+      },
+      heart: {
+        ...selectedPoint.heart,
+        名字: values.name ?? selectedPoint.heart.名字,
+        头像: values.avatars ?? selectedPoint.heart.头像,
+        外号: values.nicknames ?? selectedPoint.heart.外号,
+        性别: values.gender ?? selectedPoint.heart.性别,
+        生日: values.birthday ? values.birthday.valueOf() : selectedPoint.heart.生日,
+        关系: values.relation ?? selectedPoint.heart.关系,
+        辈分: values.generation ?? selectedPoint.heart.辈分,
+        身份: values.identity ?? selectedPoint.heart.身份,
+        初识: values.firstMet ? values.firstMet.valueOf() : selectedPoint.heart.初识,
+        联系: values.contact ?? selectedPoint.heart.联系,
+        联系方式: values.contacts ?? selectedPoint.heart.联系方式,
+        称呼: values.salutation ?? selectedPoint.heart.称呼,
+        标签: values.tags ?? selectedPoint.heart.标签,
+        备注: values.notes ?? selectedPoint.heart.备注,
+      },
+    };
 
     // 如果是新建点（ID为空），先创建
     if (!selectedPoint._id) {
       try {
+        const { _id, createdAt, updatedAt, ...createData } = selectedPoint as any;
         await onCreatePoint({
-          ...selectedPoint,
-          heart: {
-            ...selectedPoint.heart,
-            名字: values.name || selectedPoint.heart.名字,
-          },
+          ...createData,
+          ...updateData,
         });
         message.success('创建成功');
       } catch (error) {
@@ -110,12 +161,7 @@ export default function EditSidebar({
 
     // 如果是更新已有点
     try {
-      await onUpdatePoint(selectedPoint, {
-        heart: {
-          ...selectedPoint.heart,
-          名字: values.name || selectedPoint.heart.名字,
-        },
-      });
+      await onUpdatePoint(selectedPoint, updateData);
       message.success('保存成功');
     } catch (error) {
       console.error('保存失败:', error);
@@ -145,7 +191,7 @@ export default function EditSidebar({
     setAddLineModalOpen(true);
   };
 
-  const handleAddLine = async (values: { endPointId: string; relations?: string[] }) => {
+  const handleAddLine = async (values: { endPointId: string; relations?: string[]; status?: string; color?: string }) => {
     if (!selectedPoint) return;
 
     // 检查是否已存在连接
@@ -162,7 +208,11 @@ export default function EditSidebar({
       await onCreateLine({
         startPointId: selectedPoint._id,
         endPointId: values.endPointId,
-        relations: values.relations || [`${selectedPoint.heart.名字} → ${points.find(p => p._id === values.endPointId)?.heart.名字 || values.endPointId}`],
+        relations: values.relations && values.relations.length > 0
+          ? values.relations
+          : [`${selectedPoint.heart.名字} → ${points.find(p => p._id === values.endPointId)?.heart.名字 || values.endPointId}`],
+        status: values.status || 'unchanged',
+        color: values.color || '#FFD700',
       });
       message.success('线创建成功');
       setAddLineModalOpen(false);
@@ -179,18 +229,20 @@ export default function EditSidebar({
       startPointId: line.points[0],
       endPointId: line.points[1],
       relations: line.relations,
+      status: line.status,
+      color: line.color,
     });
     setEditLineModalOpen(true);
   };
 
-  const handleEditLine = async (values: { startPointId: string; endPointId: string; relations?: string[] }) => {
+  const handleEditLine = async (values: { startPointId: string; endPointId: string; relations?: string[]; status?: string; color?: string }) => {
     if (!editingLine) return;
     try {
       await onUpdateLine(editingLine, {
         points: [values.startPointId, values.endPointId],
         relations: values.relations || editingLine.relations,
-        status: editingLine.status,
-        color: editingLine.color,
+        status: (values.status || editingLine.status) as LineData['status'],
+        color: values.color || editingLine.color,
       });
       message.success('线更新成功');
       setEditLineModalOpen(false);
@@ -214,16 +266,17 @@ export default function EditSidebar({
   // ===== 组操作 =====
   const handleOpenAddGroupModal = () => {
     addGroupForm.resetFields();
-    addGroupForm.setFieldsValue({ color: '#3b82f6' });
+    addGroupForm.setFieldsValue({ color: '#3b82f6', status: 'unchanged', parent: null });
     setAddGroupModalOpen(true);
   };
 
-  const handleAddGroup = async (values: { name: string; color: string }) => {
+  const handleAddGroup = async (values: { name: string; color: string; status: string; parent: string | null }) => {
     try {
       const newGroup = await onCreateGroup({
         name: values.name,
         color: values.color,
-        status: 'unchanged',
+        status: values.status,
+        parent: values.parent || null,
       });
       // 创建组后更新当前点的阵营属性
       if (newGroup && selectedPoint) {
@@ -249,16 +302,19 @@ export default function EditSidebar({
       name: group.name,
       color: group.color,
       status: group.status,
+      parent: group.parent || null,
     });
     setEditGroupModalOpen(true);
   };
 
-  const handleEditGroup = async (values: { name: string; color: string }) => {
+  const handleEditGroup = async (values: { name: string; color: string; status: string; parent: string | null }) => {
     if (!editingGroup) return;
     try {
       await onUpdateGroup(editingGroup, {
         name: values.name,
         color: values.color,
+        status: values.status as GroupData['status'],
+        parent: values.parent || null,
       });
       message.success('组更新成功');
       setEditGroupModalOpen(false);
@@ -276,6 +332,7 @@ export default function EditSidebar({
         placement="right"
         onClose={handleClose}
         open={drawerOpen}
+        afterOpenChange={handleAfterOpenChange}
         size="large"
         styles={{
           body: {
@@ -305,14 +362,8 @@ export default function EditSidebar({
                 <div>
                   <span className="text-gray-500 text-sm">ID:</span>
                   <Tag color="blue">{selectedPoint._id}</Tag>
-                  <span className="text-gray-500 text-sm ml-2">坐标:</span>
-                  <Tag color="green">({selectedPoint.position.x}, {selectedPoint.position.y})</Tag>
                 </div>
               </div>
-
-              <Form.Item name="name" label="名字">
-                <Input placeholder="请输入名字" />
-              </Form.Item>
 
               <Form.Item>
                 <Space>
@@ -325,6 +376,166 @@ export default function EditSidebar({
                   </Button>
                 </Space>
               </Form.Item>
+
+              <Divider />
+
+              <Collapse
+                defaultActiveKey={['position', 'heart']}
+                items={[
+                  {
+                    key: 'position',
+                    label: 'position',
+                    children: (
+                      <Space style={{ width: '100%' }}>
+                        <Form.Item name="positionX" label="x" style={{ marginBottom: 0 }}>
+                          <InputNumber style={{ width: 100 }} />
+                        </Form.Item>
+                        <Form.Item name="positionY" label="y" style={{ marginBottom: 0 }}>
+                          <InputNumber style={{ width: 100 }} />
+                        </Form.Item>
+                      </Space>
+                    ),
+                  },
+                  {
+                    key: 'heart',
+                    label: 'heart',
+                    children: (
+                      <>
+                        <Form.Item name="name" label="名字" rules={[{ required: true, message: '请输入名字' }]}>
+                          <Input placeholder="请输入名字" />
+                        </Form.Item>
+                        <Form.Item name="avatars" label="头像">
+                          <Select mode="tags" placeholder="输入头像URL后按回车" />
+                        </Form.Item>
+                        <Form.Item name="nicknames" label="外号">
+                          <Select mode="tags" placeholder="输入外号后按回车" />
+                        </Form.Item>
+                        <Form.Item name="gender" label="性别">
+                          <Select
+                            allowClear
+                            placeholder="请选择性别"
+                            options={[
+                              { label: '男', value: '男' },
+                              { label: '女', value: '女' },
+                              { label: '未知', value: '未知' },
+                              { label: '伪男', value: '伪男' },
+                              { label: '伪娘', value: '伪娘' },
+                            ]}
+                          />
+                        </Form.Item>
+                        <Form.Item name="firstMet" label="初识">
+                          <DatePicker style={{ width: '100%' }} placeholder="请选择初识日期" />
+                        </Form.Item>
+                        <Form.Item name="contact" label="联系">
+                          <InputNumber
+                            min={0}
+                            max={10}
+                            style={{ width: '100%' }}
+                            placeholder="时间戳或0-10"
+                          />
+                        </Form.Item>
+                        <Form.Item name="birthday" label="生日">
+                          <DatePicker style={{ width: '100%' }} placeholder="请选择生日" />
+                        </Form.Item>
+                        <Form.Item name="identity" label="身份">
+                          <Input placeholder="请输入身份" />
+                        </Form.Item>
+                        <Form.Item name="salutation" label="称呼">
+                          <Input placeholder="请输入称呼" />
+                        </Form.Item>
+                        <Form.Item name="generation" label="辈分">
+                          <Input placeholder="请输入辈分" />
+                        </Form.Item>
+                        <Form.Item name="relation" label="关系">
+                          <Input placeholder="请输入关系" />
+                        </Form.Item>
+                        <Form.Item name="contacts" label="联系方式">
+                          <Form.List name="contacts">
+                            {(fields, { add, remove }) => (
+                              <>
+                                {fields.map(({ key, name, ...restField }) => (
+                                  <div key={key} style={{ marginBottom: 12 }}>
+                                    <Space align="start" wrap>
+                                      <Form.Item {...restField} name={[name, '账号名']} label="账号名" style={{ marginBottom: 0 }}>
+                                        <Input placeholder="账号名" style={{ width: 120 }} />
+                                      </Form.Item>
+                                      <Form.Item {...restField} name={[name, '曾用名']} label="曾用名" style={{ marginBottom: 0 }}>
+                                        <Select mode="tags" placeholder="曾用名" style={{ width: 120 }} />
+                                      </Form.Item>
+                                    </Space>
+                                    <Space align="start" wrap>
+                                      <Form.Item {...restField} name={[name, '账号']} label="账号" style={{ marginBottom: 0 }}>
+                                        <Input placeholder="账号" style={{ width: 120 }} />
+                                      </Form.Item>
+                                      <Form.Item {...restField} name={[name, '平台']} label="平台" style={{ marginBottom: 0 }}>
+                                        <Select placeholder="平台" style={{ width: 100 }} options={[
+                                          { label: '微信', value: '微信' },
+                                          { label: 'QQ', value: 'QQ' },
+                                          { label: '手机', value: '手机' },
+                                          { label: '邮箱', value: '邮箱' },
+                                          { label: '微博', value: '微博' },
+                                          { label: '抖音', value: '抖音' },
+                                          { label: '小红书', value: '小红书' },
+                                          { label: '其他', value: '其他' },
+                                        ]} />
+                                      </Form.Item>
+                                      <Form.Item {...restField} name={[name, 'status']} label="status" style={{ marginBottom: 0 }}>
+                                        <Select placeholder="状态" style={{ width: 100 }} options={[
+                                          { label: '正常', value: '正常' },
+                                          { label: '已注销', value: '已注销' },
+                                          { label: '已冻结', value: '已冻结' },
+                                        ]} />
+                                      </Form.Item>
+                                      <MinusCircleOutlined
+                                        style={{ marginTop: 8 }}
+                                        onClick={() => remove(name)}
+                                      />
+                                    </Space>
+                                  </div>
+                                ))}
+                                <Button type="dashed" onClick={() => add({ 账号名: '', 曾用名: null, 账号: '', 平台: '', status: '正常' })} block icon={<PlusOutlined />}>
+                                  添加
+                                </Button>
+                              </>
+                            )}
+                          </Form.List>
+                        </Form.Item>
+                        <Form.Item name="tags" label="标签">
+                          <Form.List name="tags">
+                            {(fields, { add, remove }) => (
+                              <>
+                                {fields.map(({ key, name, ...restField }) => (
+                                  <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="start">
+                                    <Form.Item {...restField} name={[name, 'name']} style={{ marginBottom: 0 }}>
+                                      <Input placeholder="标签名" />
+                                    </Form.Item>
+                                    <Form.Item {...restField} name={[name, 'status']} style={{ marginBottom: 0 }}>
+                                      <Select placeholder="status" style={{ width: 100 }} options={[
+                                        { label: '有效', value: '有效' },
+                                        { label: '无效', value: '无效' },
+                                      ]} />
+                                    </Form.Item>
+                                    <MinusCircleOutlined
+                                      style={{ marginTop: 8 }}
+                                      onClick={() => remove(name)}
+                                    />
+                                  </Space>
+                                ))}
+                                <Button type="dashed" onClick={() => add({ name: '', status: '有效', timestamp: Date.now() })} block icon={<PlusOutlined />}>
+                                  添加
+                                </Button>
+                              </>
+                            )}
+                          </Form.List>
+                        </Form.Item>
+                        <Form.Item name="notes" label="备注">
+                          <Input.TextArea rows={4} placeholder="请输入备注" />
+                        </Form.Item>
+                      </>
+                    ),
+                  },
+                ]}
+              />
 
               <Divider />
 
@@ -348,7 +559,27 @@ export default function EditSidebar({
                             {pointLines.map(line => (
                               <div key={line._id} className="p-2 border rounded hover:bg-gray-50">
                                 <div className="flex items-center justify-between mb-1">
-                                  <Tag color="blue">{line._id}</Tag>
+                                  <Space size={4}>
+                                    <div
+                                      style={{
+                                        width: 12,
+                                        height: 12,
+                                        borderRadius: '50%',
+                                        backgroundColor: line.color,
+                                        border: '1px solid #d9d9d9',
+                                        display: 'inline-block',
+                                      }}
+                                    />
+                                    <Tag
+                                      color={
+                                        line.status === 'unchanged' ? 'green' :
+                                        line.status === 'changed' ? 'orange' : 'default'
+                                      }
+                                    >
+                                      {line.status === 'unchanged' ? '未变化' :
+                                       line.status === 'changed' ? '已变化' : '未知'}
+                                    </Tag>
+                                  </Space>
                                   <Space size="small">
                                     <Button
                                       type="link"
@@ -369,6 +600,11 @@ export default function EditSidebar({
                                   {line.points[0].slice(-4)} → {line.points[1].slice(-4)}
                                   {line.relations[0] && <span className="ml-2 text-gray-400">({line.relations[0]})</span>}
                                 </div>
+                                {line.relations.length > 1 && (
+                                  <div className="text-xs text-gray-400 mt-1">
+                                    {line.relations.slice(1).map((r, i) => <Tag key={i} style={{ fontSize: 11 }}>{r}</Tag>)}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -502,7 +738,7 @@ export default function EditSidebar({
         onCancel={() => setAddLineModalOpen(false)}
         footer={null}
       >
-        <Form form={addLineForm} layout="vertical" onFinish={handleAddLine}>
+        <Form form={addLineForm} layout="vertical" onFinish={handleAddLine} initialValues={{ status: 'unchanged', color: '#FFD700' }}>
           <Form.Item label="起点">
             <Tag color="blue">{selectedPoint?.heart.名字 || selectedPoint?._id}</Tag>
           </Form.Item>
@@ -520,7 +756,24 @@ export default function EditSidebar({
             />
           </Form.Item>
           <Form.Item name="relations" label="关系描述">
-            <Input placeholder="请输入关系描述（可选）" />
+            <Select
+              mode="tags"
+              placeholder="输入关系描述后按回车添加"
+              tokenSeparators={[',']}
+              maxCount={2}
+            />
+          </Form.Item>
+          <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
+            <Select
+              options={[
+                { label: '未变化', value: 'unchanged' },
+                { label: '已变化', value: 'changed' },
+                { label: '未知', value: 'unknown' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="color" label="颜色" getValueFromEvent={(color) => color.toHexString()} getValueProps={(value) => ({ value })}>
+            <ColorPicker format="hex" />
           </Form.Item>
           <Form.Item>
             <Space>
@@ -562,7 +815,24 @@ export default function EditSidebar({
             />
           </Form.Item>
           <Form.Item name="relations" label="关系描述">
-            <Input placeholder="请输入关系描述（可选）" />
+            <Select
+              mode="tags"
+              placeholder="输入关系描述后按回车添加"
+              tokenSeparators={[',']}
+              maxCount={2}
+            />
+          </Form.Item>
+          <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
+            <Select
+              options={[
+                { label: '未变化', value: 'unchanged' },
+                { label: '已变化', value: 'changed' },
+                { label: '未知', value: 'unknown' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="color" label="颜色" getValueFromEvent={(color) => color.toHexString()} getValueProps={(value) => ({ value })}>
+            <ColorPicker format="hex" />
           </Form.Item>
           <Form.Item>
             <Space>
@@ -581,11 +851,31 @@ export default function EditSidebar({
         footer={null}
       >
         <Form form={addGroupForm} layout="vertical" onFinish={handleAddGroup}>
-          <Form.Item name="name" label="组名称" rules={[{ required: true }]}>
+          <Form.Item name="name" label="name" rules={[{ required: true }]}>
             <Input placeholder="请输入组名称" />
           </Form.Item>
-          <Form.Item name="color" label="颜色" getValueFromEvent={(color) => color.toHexString()} getValueProps={(value) => ({ value })}>
+          <Form.Item name="color" label="color" getValueFromEvent={(color) => color.toHexString()} getValueProps={(value) => ({ value })}>
             <ColorPicker format="hex" />
+          </Form.Item>
+          <Form.Item name="status" label="status" rules={[{ required: true, message: '请选择状态' }]}>
+            <Select
+              options={[
+                { label: '未变化', value: 'unchanged' },
+                { label: '已变化', value: 'changed' },
+                { label: '未知', value: 'unknown' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="parent" label="parent">
+            <Select
+              allowClear
+              showSearch
+              placeholder="选择父组（可选）"
+              options={groups.map(g => ({
+                label: g.name,
+                value: g._id,
+              }))}
+            />
           </Form.Item>
           <Form.Item>
             <Space>
@@ -604,12 +894,50 @@ export default function EditSidebar({
         footer={null}
       >
         <Form form={editGroupForm} layout="vertical" onFinish={handleEditGroup}>
-          <Form.Item name="name" label="组名称" rules={[{ required: true }]}>
+          <Form.Item name="name" label="name" rules={[{ required: true }]}>
             <Input placeholder="请输入组名称" />
           </Form.Item>
-          <Form.Item name="color" label="颜色" getValueFromEvent={(color) => color.toHexString()} getValueProps={(value) => ({ value })}>
+          <Form.Item name="color" label="color" getValueFromEvent={(color) => color.toHexString()} getValueProps={(value) => ({ value })}>
             <ColorPicker format="hex" />
           </Form.Item>
+          <Form.Item name="status" label="status" rules={[{ required: true, message: '请选择状态' }]}>
+            <Select
+              options={[
+                { label: '未变化', value: 'unchanged' },
+                { label: '已变化', value: 'changed' },
+                { label: '未知', value: 'unknown' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="parent" label="parent">
+            <Select
+              allowClear
+              showSearch
+              placeholder="选择父组（可选）"
+              options={groups.map(g => ({
+                label: g.name,
+                value: g._id,
+              }))}
+            />
+          </Form.Item>
+          {editingGroup?.parent && (
+            <Form.Item>
+              <Button
+                type="link"
+                onClick={() => {
+                  const parentGroup = groups.find(g => g._id === editingGroup.parent);
+                  if (parentGroup) {
+                    setEditGroupModalOpen(false);
+                    handleOpenEditGroupModal(parentGroup);
+                  } else {
+                    message.warning('找不到父组');
+                  }
+                }}
+              >
+                进入父组编辑页
+              </Button>
+            </Form.Item>
+          )}
           <Form.Item>
             <Space>
               <Button onClick={() => { setEditGroupModalOpen(false); setEditingGroup(null); }}>取消</Button>

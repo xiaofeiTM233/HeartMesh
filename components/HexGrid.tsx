@@ -51,11 +51,12 @@ interface LineConnectionProps {
   endX: number;
   endY: number;
   label: string;
+  color?: string;
   onHover?: () => void;
   onUnhover?: () => void;
 }
 
-function LineConnection({ startX, startY, endX, endY, label, onHover, onUnhover }: LineConnectionProps) {
+function LineConnection({ startX, startY, endX, endY, label, color = LINE_COLOR, onHover, onUnhover }: LineConnectionProps) {
   const [isHovered, setIsHovered] = useState(false);
   
   return (
@@ -63,7 +64,7 @@ function LineConnection({ startX, startY, endX, endY, label, onHover, onUnhover 
       {/* 连线本体 */}
       <Line
         points={[startX, startY, endX, endY]}
-        stroke={LINE_COLOR}
+        stroke={color}
         strokeWidth={isHovered ? LINE_WIDTH + 2 : LINE_WIDTH}
         opacity={isHovered ? 1 : LINE_OPACITY}
         lineCap="round"
@@ -78,7 +79,7 @@ function LineConnection({ startX, startY, endX, endY, label, onHover, onUnhover 
           setIsHovered(false);
           onUnhover?.();
         }}
-        shadowColor={LINE_COLOR}
+        shadowColor={color}
         shadowBlur={isHovered ? 10 : 0}
         shadowOpacity={0.6}
       />
@@ -520,6 +521,7 @@ export default function HexGrid({
                   endX={endPos.x}
                   endY={endPos.y}
                   label={line.relations[0] || `${startName} → ${endName}`}
+                  color={line.color}
                   onHover={() => setHoveredLineId(line._id)}
                   onUnhover={() => setHoveredLineId(null)}
                 />
@@ -641,10 +643,13 @@ export default function HexGrid({
               }),
             });
             const result = await response.json();
-            if (result.success) {
+            if (result.success && result.data) {
+              // 使用后端返回的完整文档数据，确保 updatedAt 等字段同步
               setLines(prev => prev.map(l => 
-                l._id === line._id ? { ...l, ...data } : l
+                l._id === line._id ? result.data : l
               ));
+            } else {
+              message.error(result.error || '更新线失败');
             }
           }}
           onUpdateGroup={async (group, data) => {
@@ -697,8 +702,8 @@ export default function HexGrid({
             const lineData = {
               points: [startPt._id, endPt._id],
               relations: data.relations || [`${startPt.heart.名字} → ${endPt.heart.名字}`],
-              status: 'unchanged',
-              color: LINE_COLOR,
+              status: data.status || 'unchanged',
+              color: data.color || LINE_COLOR,
             };
 
             const response = await fetch('/api/data', {
@@ -713,6 +718,8 @@ export default function HexGrid({
             const result = await response.json();
             if (result.success && result.data) {
               setLines(prev => [...prev, result.data]);
+            } else {
+              message.error(result.error || '创建线失败');
             }
           }}
           onCreateGroup={async (data) => {
@@ -760,6 +767,8 @@ export default function HexGrid({
             const result = await response.json();
             if (result.success) {
               setLines(prev => prev.filter(l => l._id !== lineId));
+            } else {
+              message.error(result.error || '删除线失败');
             }
           }}
           onDeleteGroup={async (groupId) => {
