@@ -187,12 +187,15 @@ export default function HexCell({ point, group, allPoints, scale, draggable = fa
   }, [draggable, onClick, point]);
   
   const handleDragStart = useCallback((e: KonvaEventObject<DragEvent>) => {
+    // 阻止事件冒泡，避免触发 Stage 的拖动
+    e.cancelBubble = true;
     // 拖动时提升层级
     const target = e.target as any;
     target.moveToTop();
   }, []);
   
   const handleDragEnd = useCallback((e: KonvaEventObject<DragEvent>) => {
+    e.cancelBubble = true;
     const target = e.target as any;
     const newX = target.x();
     const newY = target.y();
