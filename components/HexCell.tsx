@@ -4,8 +4,19 @@
 import { useMemo, useRef, useCallback } from 'react';
 import { Group, RegularPolygon, Text, Line } from 'react-konva';
 import { KonvaEventObject } from 'konva/lib/Node';
-import type { PointData, GroupData, CellBorderStatus } from '@/lib/types';
+import type { PointData } from '@/models/Point';
+import type { GroupData } from '@/models/Group';
 import { HEX_SIZE, getNeighbors, axialToPixel, pixelToOffset } from '@/lib/hexGrid';
+
+// 格子边框状态
+interface CellBorderStatus {
+  topRight: { hasPoint: boolean; sameGroup: boolean };
+  right: { hasPoint: boolean; sameGroup: boolean };
+  bottomRight: { hasPoint: boolean; sameGroup: boolean };
+  bottomLeft: { hasPoint: boolean; sameGroup: boolean };
+  left: { hasPoint: boolean; sameGroup: boolean };
+  topLeft: { hasPoint: boolean; sameGroup: boolean };
+}
 
 interface HexCellProps {
   point: PointData;
@@ -58,7 +69,7 @@ function calculateBorderStatus(
   point: PointData,
   allPoints: Map<string, PointData>
 ): CellBorderStatus {
-  const neighbors = getNeighbors(point.x, point.y);
+  const neighbors = getNeighbors(point.position.x, point.position.y);
   // 顺序与 HEX_DIRECTIONS 一致：NE、NW、W、SW、SE、E
   const directions = ['topRight', 'topLeft', 'left', 'bottomLeft', 'bottomRight', 'right'] as const;
   
@@ -79,7 +90,7 @@ function calculateBorderStatus(
     if (neighborPoint) {
       status[direction].hasPoint = true;
       // 只有当两个点都有有效的 group 且相等时，才认为是同一组
-      status[direction].sameGroup = !!(point.group && neighborPoint.group && point.group === neighborPoint.group);
+      status[direction].sameGroup = !!(point.heart.阵营 && neighborPoint.heart.阵营 && point.heart.阵营 === neighborPoint.heart.阵营);
     }
   });
   
@@ -175,10 +186,10 @@ export default function HexCell({ point, group, allPoints, scale, draggable = fa
   // 计算像素坐标（使用统一的坐标转换函数）
   const { x: pixelX, y: pixelY } = useMemo(() => {
     // 偏移坐标 -> 轴向坐标 -> 像素坐标
-    const q = point.x;
-    const r = point.y - Math.floor(point.x / 2);
+    const q = point.position.x;
+    const r = point.position.y - Math.floor(point.position.x / 2);
     return axialToPixel(q, r);
-  }, [point.x, point.y]);
+  }, [point.position.x, point.position.y]);
   
   const handleClick = useCallback(() => {
     if (!draggable) {
@@ -253,7 +264,7 @@ export default function HexCell({ point, group, allPoints, scale, draggable = fa
       ))}
       
       {/* Avatar 占位（如果有） */}
-      {point.avatar && (
+      {point.heart.头像 && point.heart.头像.length > 0 && (
         <Group y={-HEX_SIZE * 0.2}>
           {/* 这里需要使用 KonvaImage 加载图片，暂时用圆形占位 */}
           <RegularPolygon
@@ -265,11 +276,11 @@ export default function HexCell({ point, group, allPoints, scale, draggable = fa
           />
         </Group>
       )}
-      
+
       {/* 名称 */}
-      {point.name && (
+      {point.heart.名字 && (
         <Text
-          text={point.name}
+          text={point.heart.名字}
           fontSize={fontSize}
           fill="#1f2937"
           align="center"

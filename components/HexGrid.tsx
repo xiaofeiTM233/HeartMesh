@@ -15,7 +15,9 @@ import {
   pixelToOffset,
   offsetToAxial,
 } from '@/lib/hexGrid';
-import type { PointData, LineData, GroupData } from '@/lib/types';
+import type { PointData } from '@/models/Point';
+import type { LineData } from '@/models/Line';
+import type { GroupData } from '@/models/Group';
 
 // 颜色配置
 const BG_COLOR = '#9ca3af';      // 灰色背景
@@ -102,13 +104,14 @@ export default function HexGrid({
   const [selectedPoint, setSelectedPoint] = useState<PointData | null>(null); // 选中的点
   const [sidebarOpen, setSidebarOpen] = useState(false); // 侧边栏开关
   const [hoveredLineId, setHoveredLineId] = useState<string | null>(null); // 当前hover的线ID
+  const [creatingPoint, setCreatingPoint] = useState<PointData | null>(null); // 正在创建的点
   const stageRef = useRef<Konva.Stage>(null);
   
   // 创建坐标到点的映射
   const pointsMap = useMemo(() => {
     const map = new Map<string, PointData>();
     points.forEach(p => {
-      map.set(`${p.x},${p.y}`, p);
+      map.set(`${p.position.x},${p.position.y}`, p);
     });
     return map;
   }, [points]);
@@ -156,15 +159,125 @@ export default function HexGrid({
       } catch (error) {
         console.error('Failed to fetch data:', error);
         setPoints([
-          { _id: '1', x: 0, y: 0, name: '中心', group: 'g1' },
-          { _id: '2', x: 1, y: 0, name: '邻居1', group: 'g1' },
-          { _id: '3', x: 0, y: 1, name: '邻居2', group: 'g2' },
-          { _id: '4', x: -1, y: 1, name: '邻居3' },
-          { _id: '5', x: 1, y: -1, name: '邻居4', group: 'g1' },
+          {
+            _id: '1',
+            position: { x: 0, y: 0 },
+            heart: {
+              名字: '中心',
+              关系: '朋友',
+              辈分: '同辈',
+              身份: '同学',
+              初识: 1716500000000,
+              联系: true,
+              阵营: 'g1',
+              外号: [],
+              性别: null,
+              生日: null,
+              联系方式: [],
+              称呼: '',
+              标签: [],
+              备注: '',
+              头像: [],
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            _id: '2',
+            position: { x: 1, y: 0 },
+            heart: {
+              名字: '邻居1',
+              关系: '朋友',
+              辈分: '同辈',
+              身份: '同学',
+              初识: 1716500000000,
+              联系: true,
+              阵营: 'g1',
+              外号: [],
+              性别: null,
+              生日: null,
+              联系方式: [],
+              称呼: '',
+              标签: [],
+              备注: '',
+              头像: [],
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            _id: '3',
+            position: { x: 0, y: 1 },
+            heart: {
+              名字: '邻居2',
+              关系: '朋友',
+              辈分: '同辈',
+              身份: '同学',
+              初识: 1716500000000,
+              联系: true,
+              阵营: 'g2',
+              外号: [],
+              性别: null,
+              生日: null,
+              联系方式: [],
+              称呼: '',
+              标签: [],
+              备注: '',
+              头像: [],
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            _id: '4',
+            position: { x: -1, y: 1 },
+            heart: {
+              名字: '邻居3',
+              关系: '朋友',
+              辈分: '同辈',
+              身份: '同学',
+              初识: 1716500000000,
+              联系: true,
+              阵营: '',
+              外号: [],
+              性别: null,
+              生日: null,
+              联系方式: [],
+              称呼: '',
+              标签: [],
+              备注: '',
+              头像: [],
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            _id: '5',
+            position: { x: 1, y: -1 },
+            heart: {
+              名字: '邻居4',
+              关系: '朋友',
+              辈分: '同辈',
+              身份: '同学',
+              初识: 1716500000000,
+              联系: true,
+              阵营: 'g1',
+              外号: [],
+              性别: null,
+              生日: null,
+              联系方式: [],
+              称呼: '',
+              标签: [],
+              备注: '',
+              头像: [],
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
         ]);
         setGroups([
-          { _id: 'g1', name: '组1', color: '#ff6b6b', pointIds: ['1', '2', '5'], lineIds: [] },
-          { _id: 'g2', name: '组2', color: '#4ecdc4', pointIds: ['3'], lineIds: [] },
+          { _id: 'g1', name: '组1', color: '#ff6b6b', status: 'unchanged', parent: null, points: ['1', '2', '5'], createdAt: new Date(), updatedAt: new Date() },
+          { _id: 'g2', name: '组2', color: '#4ecdc4', status: 'unchanged', parent: null, points: ['3'], createdAt: new Date(), updatedAt: new Date() },
         ]);
         setLines([]);
       }
@@ -232,26 +345,10 @@ export default function HexGrid({
   const handleCellClick = useCallback((point: PointData) => {
     setSelectedPoint(point);
     setSidebarOpen(true);
+    setCreatingPoint(null);
   }, []);
-  
-  // 处理格子拖动结束
-  const handleCellDragEnd = useCallback(async (point: PointData, newCoords: { x: number; y: number }) => {
-    // 不再自动重新定位，只更新本地状态
-    try {
-      // 更新本地状态
-      setPoints(prev => prev.map(p =>
-        p._id === point._id
-          ? { ...p, x: newCoords.x, y: newCoords.y }
-          : p
-      ));
-      message.success('点位置已更新');
-    } catch (error) {
-      console.error('更新坐标失败:', error);
-      message.error('更新失败');
-    }
-  }, [message]);
-  
-  // 处理网格空白位置点击 - 创建新点
+
+  // 处理网格空白位置点击 - 打开创建点编辑框
   const handleGridClick = useCallback(async (e: KonvaEventObject<MouseEvent>) => {
     // 只在非拖动模式下处理
     if (dragMode) return;
@@ -278,40 +375,54 @@ export default function HexGrid({
     const { x: gridX, y: gridY } = pixelToOffset(relativePos.x, relativePos.y);
     
     // 检查该位置是否已有点
-    const existingPoint = points.find(p => p.x === gridX && p.y === gridY);
+    const existingPoint = points.find(p => p.position.x === gridX && p.position.y === gridY);
     if (existingPoint) return;
     
+    // 创建一个临时点用于编辑
+    const tempPoint: PointData = {
+      _id: '', // 空ID表示是新创建的点
+      position: { x: gridX, y: gridY },
+      heart: {
+        名字: `点${gridX},${gridY}`,
+        关系: '朋友',
+        辈分: '同辈',
+        身份: '同学',
+        初识: Date.now(),
+        联系: true,
+        阵营: '',
+        外号: [],
+        性别: null,
+        生日: null,
+        联系方式: [],
+        称呼: '',
+        标签: [],
+        备注: '',
+        头像: [],
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    setCreatingPoint(tempPoint);
+    setSidebarOpen(true);
+  }, [dragMode, points]);
+  
+  // 处理格子拖动结束
+  const handleCellDragEnd = useCallback(async (point: PointData, newCoords: { x: number; y: number }) => {
+    // 不再自动重新定位，只更新本地状态
     try {
-      // 创建新点
-      const response = await fetch('/api/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'point',
-          action: 'create',
-          data: { x: gridX, y: gridY },
-        }),
-      });
-      
-      const result = await response.json();
-      
-      if (result.success && result.data) {
-        // 添加到本地状态
-        const newPoint: PointData = {
-          _id: result.data._id,
-          x: gridX,
-          y: gridY,
-        };
-        setPoints(prev => [...prev, newPoint]);
-        message.success('创建成功');
-      } else {
-        message.error('创建失败');
-      }
+      // 更新本地状态
+      setPoints(prev => prev.map(p =>
+        p._id === point._id
+          ? { ...p, position: { x: newCoords.x, y: newCoords.y } }
+          : p
+      ));
+      message.success('点位置已更新');
     } catch (error) {
-      console.error('创建失败:', error);
-      message.error('创建失败');
+      console.error('更新坐标失败:', error);
+      message.error('更新失败');
     }
-  }, [dragMode, points, message]);
+  }, [message]);
   
   return (
     <>
@@ -387,18 +498,20 @@ export default function HexGrid({
         {showLines && (
           <Layer>
             {lines.map((line) => {
-              // 将偏移坐标转换为轴向坐标，再转换为像素坐标
-              const startAxial = offsetToAxial(line.startPoint.x, line.startPoint.y);
-              const endAxial = offsetToAxial(line.endPoint.x, line.endPoint.y);
+              // 将点ID转换为轴向坐标，再转换为像素坐标
+              const startPt = points.find(p => p._id === line.points[0]);
+              const endPt = points.find(p => p._id === line.points[1]);
+              if (!startPt || !endPt) return null;
+
+              const startAxial = offsetToAxial(startPt.position.x, startPt.position.y);
+              const endAxial = offsetToAxial(endPt.position.x, endPt.position.y);
               const startPos = axialToPixel(startAxial.q, startAxial.r);
               const endPos = axialToPixel(endAxial.q, endAxial.r);
-              
+
               // 查找起点和终点的名称
-              const startPointData = points.find(p => p._id === line.startPoint.id);
-              const endPointData = points.find(p => p._id === line.endPoint.id);
-              const startName = startPointData?.name || `点${line.startPoint.id.slice(-4)}`;
-              const endName = endPointData?.name || `点${line.endPoint.id.slice(-4)}`;
-              
+              const startName = startPt.heart.名字 || `点${startPt._id.slice(-4)}`;
+              const endName = endPt.heart.名字 || `点${endPt._id.slice(-4)}`;
+
               return (
                 <LineConnection
                   key={line._id}
@@ -406,7 +519,7 @@ export default function HexGrid({
                   startY={startPos.y}
                   endX={endPos.x}
                   endY={endPos.y}
-                  label={line.label || `${startName} → ${endName}`}
+                  label={line.relations[0] || `${startName} → ${endName}`}
                   onHover={() => setHoveredLineId(line._id)}
                   onUnhover={() => setHoveredLineId(null)}
                 />
@@ -421,7 +534,7 @@ export default function HexGrid({
             <HexCell
               key={point._id}
               point={point}
-              group={point.group ? groupsMap.get(point.group) : undefined}
+              group={point.heart.阵营 ? groupsMap.get(point.heart.阵营) : undefined}
               allPoints={pointsMap}
               scale={scale}
               draggable={dragMode}
@@ -435,22 +548,24 @@ export default function HexGrid({
         {hoveredLineId && (
           <Layer name="tooltip-layer">
             {lines.map((line) => {
-              const startAxial = offsetToAxial(line.startPoint.x, line.startPoint.y);
-              const endAxial = offsetToAxial(line.endPoint.x, line.endPoint.y);
+              const startPt = points.find(p => p._id === line.points[0]);
+              const endPt = points.find(p => p._id === line.points[1]);
+              if (!startPt || !endPt) return null;
+
+              const startAxial = offsetToAxial(startPt.position.x, startPt.position.y);
+              const endAxial = offsetToAxial(endPt.position.x, endPt.position.y);
               const startPos = axialToPixel(startAxial.q, startAxial.r);
               const endPos = axialToPixel(endAxial.q, endAxial.r);
-              
+
               // 查找起点和终点的名称
-              const startPointData = points.find(p => p._id === line.startPoint.id);
-              const endPointData = points.find(p => p._id === line.endPoint.id);
-              const startName = startPointData?.name || `点${line.startPoint.id.slice(-4)}`;
-              const endName = endPointData?.name || `点${line.endPoint.id.slice(-4)}`;
-              const label = line.label || `${startName} → ${endName}`;
-              
+              const startName = startPt.heart.名字 || `点${startPt._id.slice(-4)}`;
+              const endName = endPt.heart.名字 || `点${endPt._id.slice(-4)}`;
+              const label = line.relations[0] || `${startName} → ${endName}`;
+
               // 计算线的中点位置
               const midX = (startPos.x + endPos.x) / 2;
               const midY = (startPos.y + endPos.y) / 2;
-              
+
               return (
                 <Label
                   key={`tooltip-${line._id}`}
@@ -487,10 +602,11 @@ export default function HexGrid({
           points={points}
           lines={lines}
           groups={groups}
-          selectedPoint={selectedPoint}
+          selectedPoint={creatingPoint || selectedPoint}
           onClose={() => {
             setSidebarOpen(false);
             setSelectedPoint(null);
+            setCreatingPoint(null);
           }}
           onUpdatePoint={async (point, data) => {
             const response = await fetch('/api/data', {
@@ -549,22 +665,42 @@ export default function HexGrid({
               ));
             }
           }}
+          onCreatePoint={async (pointData) => {
+            const response = await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'point',
+                action: 'create',
+                data: pointData,
+              }),
+            });
+            const result = await response.json();
+            if (result.success && result.data) {
+              setPoints(prev => [...prev, result.data]);
+              setSelectedPoint(result.data);
+              message.success('创建成功');
+            } else {
+              message.error('创建失败');
+            }
+          }}
           onCreateLine={async (data) => {
             // 根据 ID 查找起点和终点的完整信息
             const startPt = points.find(p => p._id === data.startPointId);
             const endPt = points.find(p => p._id === data.endPointId);
-            
+
             if (!startPt || !endPt) {
               console.error('找不到起点或终点');
               return;
             }
-            
+
             const lineData = {
-              startPoint: { id: startPt._id, x: startPt.x, y: startPt.y },
-              endPoint: { id: endPt._id, x: endPt.x, y: endPt.y },
-              label: data.label,
+              points: [startPt._id, endPt._id],
+              relations: data.relations || [`${startPt.heart.名字} → ${endPt.heart.名字}`],
+              status: 'unchanged',
+              color: LINE_COLOR,
             };
-            
+
             const response = await fetch('/api/data', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

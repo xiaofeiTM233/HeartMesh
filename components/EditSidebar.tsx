@@ -4,7 +4,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Form, Input, Button, Select, Collapse, Tag, Space, App, Drawer, Modal, Divider, Empty, ColorPicker } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, LinkOutlined, FolderOutlined, LogoutOutlined } from '@ant-design/icons';
-import type { PointData, LineData, GroupData } from '@/lib/types';
+import type { PointData } from '@/models/Point';
+import type { LineData } from '@/models/Line';
+import type { GroupData } from '@/models/Group';
 
 interface EditSidebarProps {
   points: PointData[];
@@ -15,8 +17,9 @@ interface EditSidebarProps {
   onUpdatePoint: (point: PointData, data: Partial<PointData>) => Promise<void>;
   onUpdateLine: (line: LineData, data: Partial<LineData>) => Promise<void>;
   onUpdateGroup: (group: GroupData, data: Partial<GroupData>) => Promise<void>;
-  onCreateLine: (data: { startPointId: string; endPointId: string; label?: string }) => Promise<void>;
-  onCreateGroup: (data: { name: string; color: string; pointIds?: string[] }) => Promise<GroupData | null>;
+  onCreatePoint: (pointData: PointData) => Promise<void>;
+  onCreateLine: (data: { startPointId: string; endPointId: string; relations?: string[] }) => Promise<void>;
+  onCreateGroup: (data: { name: string; color: string; status?: string }) => Promise<GroupData | null>;
   onDeletePoint: (pointId: string) => Promise<void>;
   onDeleteLine: (lineId: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
@@ -31,6 +34,7 @@ export default function EditSidebar({
   onUpdatePoint,
   onUpdateLine,
   onUpdateGroup,
+  onCreatePoint,
   onCreateLine,
   onCreateGroup,
   onDeletePoint,
@@ -54,22 +58,22 @@ export default function EditSidebar({
   // 获取当前点关联的线（起点或终点是当前点）
   const pointLines = useMemo(() => {
     if (!selectedPoint) return [];
-    return lines.filter(line => 
-      line.startPoint.id === selectedPoint._id || line.endPoint.id === selectedPoint._id
+    return lines.filter(line =>
+      line.points.includes(selectedPoint._id)
     );
   }, [lines, selectedPoint]);
 
   // 获取当前点所属的组
   const pointGroup = useMemo(() => {
-    if (!selectedPoint || !selectedPoint.group) return null;
-    return groups.find(g => g._id === selectedPoint.group) || null;
+    if (!selectedPoint || !selectedPoint.heart.阵营) return null;
+    return groups.find(g => g._id === selectedPoint.heart.阵营) || null;
   }, [groups, selectedPoint]);
 
   // 更新表单值
   useEffect(() => {
     if (selectedPoint) {
       form.setFieldsValue({
-        name: selectedPoint.name || '',
+        name: selectedPoint.heart.名字 || '',
       });
     }
   }, [selectedPoint, form]);
@@ -83,11 +87,35 @@ export default function EditSidebar({
   };
 
   // 处理点编辑表单提交
-  const handlePointSubmit = async (values: { name?: string; group?: string }) => {
+  const handlePointSubmit = async (values: { name?: string }) => {
     if (!selectedPoint) return;
 
+    // 如果是新建点（ID为空），先创建
+    if (!selectedPoint._id) {
+      try {
+        await onCreatePoint({
+          ...selectedPoint,
+          heart: {
+            ...selectedPoint.heart,
+            名字: values.name || selectedPoint.heart.名字,
+          },
+        });
+        message.success('创建成功');
+      } catch (error) {
+        console.error('创建失败:', error);
+        message.error('创建失败');
+      }
+      return;
+    }
+
+    // 如果是更新已有点
     try {
-      await onUpdatePoint(selectedPoint, values);
+      await onUpdatePoint(selectedPoint, {
+        heart: {
+          ...selectedPoint.heart,
+          名字: values.name || selectedPoint.heart.名字,
+        },
+      });
       message.success('保存成功');
     } catch (error) {
       console.error('保存失败:', error);
@@ -117,25 +145,24 @@ export default function EditSidebar({
     setAddLineModalOpen(true);
   };
 
-  const handleAddLine = async (values: { endPointId: string; label?: string }) => {
+  const handleAddLine = async (values: { endPointId: string; relations?: string[] }) => {
     if (!selectedPoint) return;
-    
+
     // 检查是否已存在连接
-    const existingLine = lines.find(line => 
-      (line.startPoint.id === selectedPoint._id && line.endPoint.id === values.endPointId) ||
-      (line.startPoint.id === values.endPointId && line.endPoint.id === selectedPoint._id)
+    const existingLine = lines.find(line =>
+      line.points.includes(selectedPoint._id) && line.points.includes(values.endPointId)
     );
-    
+
     if (existingLine) {
       message.warning('两点之间已存在连接');
       return;
     }
-    
+
     try {
       await onCreateLine({
         startPointId: selectedPoint._id,
         endPointId: values.endPointId,
-        label: values.label,
+        relations: values.relations || [`${selectedPoint.heart.名字} → ${points.find(p => p._id === values.endPointId)?.heart.名字 || values.endPointId}`],
       });
       message.success('线创建成功');
       setAddLineModalOpen(false);
@@ -149,17 +176,22 @@ export default function EditSidebar({
   const handleOpenEditLineModal = (line: LineData) => {
     setEditingLine(line);
     editLineForm.setFieldsValue({
-      startPointId: line.startPoint.id,
-      endPointId: line.endPoint.id,
-      label: line.label,
+      startPointId: line.points[0],
+      endPointId: line.points[1],
+      relations: line.relations,
     });
     setEditLineModalOpen(true);
   };
 
-  const handleEditLine = async (values: { startPointId: string; endPointId: string; label?: string }) => {
+  const handleEditLine = async (values: { startPointId: string; endPointId: string; relations?: string[] }) => {
     if (!editingLine) return;
     try {
-      await onUpdateLine(editingLine, values);
+      await onUpdateLine(editingLine, {
+        points: [values.startPointId, values.endPointId],
+        relations: values.relations || editingLine.relations,
+        status: editingLine.status,
+        color: editingLine.color,
+      });
       message.success('线更新成功');
       setEditLineModalOpen(false);
       setEditingLine(null);
@@ -188,13 +220,19 @@ export default function EditSidebar({
 
   const handleAddGroup = async (values: { name: string; color: string }) => {
     try {
-      const newGroup = await onCreateGroup({ 
-        ...values, 
-        pointIds: selectedPoint ? [selectedPoint._id] : [] 
+      const newGroup = await onCreateGroup({
+        name: values.name,
+        color: values.color,
+        status: 'unchanged',
       });
-      // 创建组后更新当前点的 group 属性
+      // 创建组后更新当前点的阵营属性
       if (newGroup && selectedPoint) {
-        await onUpdatePoint(selectedPoint, { group: newGroup._id });
+        await onUpdatePoint(selectedPoint, {
+          heart: {
+            ...selectedPoint.heart,
+            阵营: newGroup._id,
+          },
+        });
       }
       message.success('组创建成功');
       setAddGroupModalOpen(false);
@@ -210,6 +248,7 @@ export default function EditSidebar({
     editGroupForm.setFieldsValue({
       name: group.name,
       color: group.color,
+      status: group.status,
     });
     setEditGroupModalOpen(true);
   };
@@ -217,7 +256,10 @@ export default function EditSidebar({
   const handleEditGroup = async (values: { name: string; color: string }) => {
     if (!editingGroup) return;
     try {
-      await onUpdateGroup(editingGroup, values);
+      await onUpdateGroup(editingGroup, {
+        name: values.name,
+        color: values.color,
+      });
       message.success('组更新成功');
       setEditGroupModalOpen(false);
       setEditingGroup(null);
@@ -264,12 +306,12 @@ export default function EditSidebar({
                   <span className="text-gray-500 text-sm">ID:</span>
                   <Tag color="blue">{selectedPoint._id}</Tag>
                   <span className="text-gray-500 text-sm ml-2">坐标:</span>
-                  <Tag color="green">({selectedPoint.x}, {selectedPoint.y})</Tag>
+                  <Tag color="green">({selectedPoint.position.x}, {selectedPoint.position.y})</Tag>
                 </div>
               </div>
 
-              <Form.Item name="name" label="名称">
-                <Input placeholder="请输入格子名称" />
+              <Form.Item name="name" label="名字">
+                <Input placeholder="请输入名字" />
               </Form.Item>
 
               <Form.Item>
@@ -324,8 +366,8 @@ export default function EditSidebar({
                                   </Space>
                                 </div>
                                 <div className="text-sm text-gray-600">
-                                  {line.startPoint.id} → {line.endPoint.id}
-                                  {line.label && <span className="ml-2 text-gray-400">({line.label})</span>}
+                                  {line.points[0].slice(-4)} → {line.points[1].slice(-4)}
+                                  {line.relations[0] && <span className="ml-2 text-gray-400">({line.relations[0]})</span>}
                                 </div>
                               </div>
                             ))}
@@ -367,28 +409,33 @@ export default function EditSidebar({
                                   icon={<EditOutlined />}
                                   onClick={() => handleOpenEditGroupModal(pointGroup)}
                                 />
-                                <Button
-                                  type="link"
-                                  size="small"
-                                  danger
-                                  icon={<LogoutOutlined />}
-                                  onClick={async () => {
-                                    // 退出组（移除点的 group 属性）
-                                    if (selectedPoint) {
-                                      try {
-                                        await onUpdatePoint(selectedPoint, { group: null });
-                                        message.success('已退出组');
-                                      } catch (error) {
-                                        console.error('退出组失败:', error);
-                                        message.error('退出组失败');
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    danger
+                                    icon={<LogoutOutlined />}
+                                    onClick={async () => {
+                                      // 退出组（移除点的阵营属性）
+                                      if (selectedPoint) {
+                                        try {
+                                          await onUpdatePoint(selectedPoint, {
+                                            heart: {
+                                              ...selectedPoint.heart,
+                                              阵营: '',
+                                            },
+                                          });
+                                          message.success('已退出组');
+                                        } catch (error) {
+                                          console.error('退出组失败:', error);
+                                          message.error('退出组失败');
+                                        }
                                       }
-                                    }
-                                  }}
-                                />
+                                    }}
+                                  />
                               </Space>
                             </div>
                             <div className="text-sm text-gray-600">
-                              成员点: {pointGroup.pointIds.length} 个, 成员线: {pointGroup.lineIds.length} 条
+                              成员点: {pointGroup.points.length} 个
                             </div>
                           </div>
                         ) : (
@@ -409,7 +456,12 @@ export default function EditSidebar({
                               }
                               onChange={async (groupId) => {
                                 if (groupId && selectedPoint) {
-                                  await onUpdatePoint(selectedPoint, { group: groupId });
+                                  await onUpdatePoint(selectedPoint, {
+                                    heart: {
+                                      ...selectedPoint.heart,
+                                      阵营: groupId,
+                                    },
+                                  });
                                   message.success('已加入组');
                                 }
                               }}
@@ -452,7 +504,7 @@ export default function EditSidebar({
       >
         <Form form={addLineForm} layout="vertical" onFinish={handleAddLine}>
           <Form.Item label="起点">
-            <Tag color="blue">{selectedPoint?.name || selectedPoint?._id}</Tag>
+            <Tag color="blue">{selectedPoint?.heart.名字 || selectedPoint?._id}</Tag>
           </Form.Item>
           <Form.Item name="endPointId" label="终点" rules={[{ required: true, message: '请选择终点' }]}>
             <Select
@@ -462,13 +514,13 @@ export default function EditSidebar({
               options={points
                 .filter(p => p._id !== selectedPoint?._id)
                 .map(p => ({
-                  label: p.name || p._id,
+                  label: p.heart.名字 || p._id,
                   value: p._id,
                 }))}
             />
           </Form.Item>
-          <Form.Item name="label" label="标签">
-            <Input placeholder="请输入标签（可选）" />
+          <Form.Item name="relations" label="关系描述">
+            <Input placeholder="请输入关系描述（可选）" />
           </Form.Item>
           <Form.Item>
             <Space>
@@ -493,7 +545,7 @@ export default function EditSidebar({
               placeholder="选择起点"
               optionFilterProp="label"
               options={points.map(p => ({
-                label: p.name || p._id,
+                label: p.heart.名字 || p._id,
                 value: p._id,
               }))}
             />
@@ -504,13 +556,13 @@ export default function EditSidebar({
               placeholder="选择终点"
               optionFilterProp="label"
               options={points.map(p => ({
-                label: p.name || p._id,
+                label: p.heart.名字 || p._id,
                 value: p._id,
               }))}
             />
           </Form.Item>
-          <Form.Item name="label" label="标签">
-            <Input placeholder="请输入标签（可选）" />
+          <Form.Item name="relations" label="关系描述">
+            <Input placeholder="请输入关系描述（可选）" />
           </Form.Item>
           <Form.Item>
             <Space>

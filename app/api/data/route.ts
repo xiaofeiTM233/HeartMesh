@@ -1,9 +1,9 @@
 // app/api/data/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
-import Point from '@/models/Point';
-import Line from '@/models/Line';
-import Group from '@/models/Group';
+import Point, { PointData } from '@/models/Point';
+import Line, { LineData } from '@/models/Line';
+import Group, { GroupData } from '@/models/Group';
 import mongoose from 'mongoose';
 
 /**
@@ -99,24 +99,127 @@ export async function POST(request: NextRequest) {
       let createdDoc;
       switch (type) {
         case 'point':
+          // 验证必填字段
+          if (!data.position || !data.heart) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: 'Point 必须包含 position 和 heart 字段',
+              },
+              { status: 400 }
+            );
+          }
+          if (!data.position.x || !data.position.y) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: 'position 必须包含 x 和 y 字段',
+              },
+              { status: 400 }
+            );
+          }
+          if (!data.heart.名字 || !data.heart.关系 || !data.heart.初识 || !data.heart.联系 || !data.heart.阵营) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: 'heart 必须包含 名字、关系、初识、联系、阵营 字段',
+              },
+              { status: 400 }
+            );
+          }
+          // 验证外号唯一性
+          if (data.heart.外号 && new Set(data.heart.外号).size !== data.heart.外号.length) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: '外号必须唯一',
+              },
+              { status: 400 }
+            );
+          }
+          // 验证头像唯一性
+          if (data.heart.头像 && new Set(data.heart.头像).size !== data.heart.头像.length) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: '头像必须唯一',
+              },
+              { status: 400 }
+            );
+          }
           createdDoc = await Point.create(data);
           break;
         case 'line':
-          // 转换Line的startPoint和endPoint.id为ObjectId
-          const lineData = {
-            ...data,
-            startPoint: {
-              ...data.startPoint,
-              id: new mongoose.Types.ObjectId(data.startPoint.id),
-            },
-            endPoint: {
-              ...data.endPoint,
-              id: new mongoose.Types.ObjectId(data.endPoint.id),
-            },
-          };
-          createdDoc = await Line.create(lineData);
+          // 验证必填字段
+          if (!data.points || !Array.isArray(data.points) || data.points.length !== 2) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: 'line 必须包含 points 数组，且包含2个点',
+              },
+              { status: 400 }
+            );
+          }
+          if (!data.relations || !Array.isArray(data.relations) || data.relations.length < 1 || data.relations.length > 2) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: 'line 必须包含 relations 数组，且包含1-2个关系描述',
+              },
+              { status: 400 }
+            );
+          }
+          if (new Set(data.points).size !== 2) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: 'points 必须包含2个唯一点',
+              },
+              { status: 400 }
+            );
+          }
+          if (new Set(data.relations).size !== data.relations.length) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: 'relations 必须包含唯一的关系描述',
+              },
+              { status: 400 }
+            );
+          }
+          createdDoc = await Line.create(data);
           break;
         case 'group':
+          // 验证必填字段
+          if (!data.name || !data.color || !data.status) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: 'group 必须包含 name、color、status 字段',
+              },
+              { status: 400 }
+            );
+          }
+          if (!['unchanged', 'changed', 'unknown'].includes(data.status)) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: '无效的请求',
+                message: 'status 必须是 unchanged、changed 或 unknown',
+              },
+              { status: 400 }
+            );
+          }
           createdDoc = await Group.create(data);
           break;
         default:
