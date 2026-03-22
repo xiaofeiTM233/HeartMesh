@@ -1,7 +1,7 @@
 // components/EditSidebar.tsx
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { Form, Input, Button, Select, Collapse, Tag, Space, App, Drawer, Modal, Divider, Empty, ColorPicker, DatePicker, InputNumber } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, LinkOutlined, FolderOutlined, LogoutOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -70,41 +70,28 @@ export default function EditSidebar({
     return groups.find(g => g._id === selectedPoint.heart.阵营) || null;
   }, [groups, selectedPoint]);
 
-  // 填充表单值
-  const fillForm = useCallback((point: PointData) => {
-    form.setFieldsValue({
-      positionX: point.position.x,
-      positionY: point.position.y,
-      name: point.heart.名字 || '',
-      avatars: point.heart.头像 || [],
-      nicknames: point.heart.外号 || [],
-      gender: point.heart.性别 || undefined,
-      birthday: point.heart.生日 ? dayjs(point.heart.生日) : undefined,
-      relation: point.heart.关系 || '',
-      generation: point.heart.辈分 || '',
-      identity: point.heart.身份 || '',
-      firstMet: point.heart.初识 ? dayjs(point.heart.初识) : undefined,
-      contact: typeof point.heart.联系 === 'number' ? point.heart.联系 : (point.heart.联系 ? 1 : 0),
-      contacts: point.heart.联系方式 || [],
-      salutation: point.heart.称呼 || '',
-      tags: point.heart.标签 || [],
-      notes: point.heart.备注 || '',
-    });
-  }, [form]);
-
-  // Drawer 打开动画结束后填充表单，确保 Form 已挂载
-  const handleAfterOpenChange = useCallback((open: boolean) => {
-    if (open && selectedPoint) {
-      fillForm(selectedPoint);
-    }
-  }, [selectedPoint, fillForm]);
-
-  // selectedPoint 变化时（非首次挂载）也更新表单
-  useEffect(() => {
-    if (selectedPoint && drawerOpen) {
-      fillForm(selectedPoint);
-    }
-  }, [selectedPoint, drawerOpen, fillForm]);
+  // 计算表单初始值
+  const initialFormValues = useMemo(() => {
+    if (!selectedPoint) return {};
+    return {
+      positionX: selectedPoint.position.x,
+      positionY: selectedPoint.position.y,
+      name: selectedPoint.heart.名字 || '',
+      avatars: selectedPoint.heart.头像 || [],
+      nicknames: selectedPoint.heart.外号 || [],
+      gender: selectedPoint.heart.性别 || undefined,
+      birthday: selectedPoint.heart.生日 ? dayjs(selectedPoint.heart.生日) : undefined,
+      relation: selectedPoint.heart.关系 || '',
+      generation: selectedPoint.heart.辈分 || '',
+      identity: selectedPoint.heart.身份 || '',
+      firstMet: selectedPoint.heart.初识 ? dayjs(selectedPoint.heart.初识) : undefined,
+      contact: typeof selectedPoint.heart.联系 === 'number' ? selectedPoint.heart.联系 : (selectedPoint.heart.联系 ? 1 : 0),
+      contacts: selectedPoint.heart.联系方式 || [],
+      salutation: selectedPoint.heart.称呼 || '',
+      tags: selectedPoint.heart.标签 || [],
+      notes: selectedPoint.heart.备注 || '',
+    };
+  }, [selectedPoint]);
 
   // 关闭抽屉
   const handleClose = () => {
@@ -151,7 +138,7 @@ export default function EditSidebar({
           ...createData,
           ...updateData,
         });
-        message.success('创建成功');
+        handleClose();
       } catch (error) {
         console.error('创建失败:', error);
         message.error('创建失败');
@@ -163,6 +150,7 @@ export default function EditSidebar({
     try {
       await onUpdatePoint(selectedPoint, updateData);
       message.success('保存成功');
+      handleClose();
     } catch (error) {
       console.error('保存失败:', error);
       message.error('保存失败');
@@ -332,7 +320,6 @@ export default function EditSidebar({
         placement="right"
         onClose={handleClose}
         open={drawerOpen}
-        afterOpenChange={handleAfterOpenChange}
         size="large"
         styles={{
           body: {
@@ -353,7 +340,8 @@ export default function EditSidebar({
           form={form}
           layout="vertical"
           onFinish={handlePointSubmit}
-          preserve={false}
+          key={selectedPoint?._id || 'new'}
+          initialValues={initialFormValues}
         >
           {selectedPoint ? (
             <>

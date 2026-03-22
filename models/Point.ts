@@ -13,11 +13,11 @@ export interface IPoint extends Document {
     外号: string[];
     性别: string | null;
     生日: number | null;
-    关系: string;
-    辈分: string;
-    身份: string;
+    关系: string | null;
+    辈分: string | null;
+    身份: string | null;
     初识: number | null;
-    联系: number | boolean;
+    联系: number | boolean | null;
     联系方式: Array<{
       账号: string;
       平台: string;
@@ -25,8 +25,8 @@ export interface IPoint extends Document {
       曾用名: string[] | null;
       status: string;
     }>;
-    称呼: string;
-    阵营: string;
+    称呼: string | null;
+    阵营: string | null;
     标签: Array<{
       name: string;
       status: string;
@@ -51,11 +51,11 @@ export interface PointData {
     外号: string[];
     性别: string | null;
     生日: number | null;
-    关系: string;
-    辈分: string;
-    身份: string;
+    关系: string | null;
+    辈分: string | null;
+    身份: string | null;
     初识: number | null;
-    联系: number | boolean;
+    联系: number | boolean | null;
     联系方式: Array<{
       账号: string;
       平台: string;
@@ -63,8 +63,8 @@ export interface PointData {
       曾用名: string[] | null;
       status: string;
     }>;
-    称呼: string;
-    阵营: string;
+    称呼: string | null;
+    阵营: string | null;
     标签: Array<{
       name: string;
       status: string;
@@ -84,29 +84,29 @@ const PointSchema: Schema = new Schema(
       y: { type: Number, required: true },
     },
     heart: {
-      名字: { type: String, required: true },
+      名字: { type: String, default: '' },
       头像: { type: [String], default: [] },
       外号: { type: [String], default: [] },
       性别: { type: String, default: null },
       生日: { type: Number, default: null },
-      关系: { type: String, required: true },
-      辈分: { type: String, default: '' },
-      身份: { type: String, default: '' },
-      初识: { type: Number, required: true },
-      联系: { type: Schema.Types.Mixed, required: true },
+      关系: { type: String, default: null },
+      辈分: { type: String, default: null },
+      身份: { type: String, default: null },
+      初识: { type: Number, default: null },
+      联系: { type: Schema.Types.Mixed, default: null },
       联系方式: [{
-        账号: { type: String, required: true },
-        平台: { type: String, required: true },
-        账号名: { type: String, required: true },
-        曾用名: { type: [String], default: null },
-        status: { type: String, required: true },
+        账号: { type: String, default: '' },
+        平台: { type: String, default: '' },
+        账号名: { type: String, default: '' },
+        曾用名: { type: [String], default: [] },
+        status: { type: String, default: '' },
       }],
-      称呼: { type: String, default: '' },
-      阵营: { type: String, required: true },
+      称呼: { type: String, default: null },
+      阵营: { type: String, default: null },
       标签: [{
-        name: { type: String, required: true },
-        status: { type: String, required: true },
-        timestamp: { type: Number, required: true },
+        name: { type: String, default: '' },
+        status: { type: String, default: '' },
+        timestamp: { type: Number, default: null },
       }],
       备注: { type: String, default: '' },
     },

@@ -120,16 +120,7 @@ export async function POST(request: NextRequest) {
               { status: 400 }
             );
           }
-          if (!data.heart.名字 || !data.heart.关系 || !data.heart.初识 || !data.heart.联系 || !data.heart.阵营) {
-            return NextResponse.json(
-              {
-                success: false,
-                error: '无效的请求',
-                message: 'heart 必须包含 名字、关系、初识、联系、阵营 字段',
-              },
-              { status: 400 }
-            );
-          }
+
           // 验证外号唯一性
           if (data.heart.外号 && new Set(data.heart.外号).size !== data.heart.外号.length) {
             return NextResponse.json(
