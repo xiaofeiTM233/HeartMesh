@@ -84,8 +84,8 @@ export default function TablePage() {
   const pointColumns = useMemo<ProColumns<PointData>[]>(() => [
     { title: 'ID', dataIndex: '_id', width: 80, editable: false, copyable: true },
     { title: '名字', dataIndex: ['heart', '名字'], width: 100, formItemProps: { rules: [{ required: true, message: '请输入名字' }] } },
-    { title: 'X坐标', dataIndex: ['position', 'x'], width: 80, valueType: 'digit', formItemProps: { rules: [{ required: true, message: '请输入X坐标' }] } },
-    { title: 'Y坐标', dataIndex: ['position', 'y'], width: 80, valueType: 'digit', formItemProps: { rules: [{ required: true, message: '请输入Y坐标' }] } },
+    { title: 'X坐标', dataIndex: ['mesh', 'x'], width: 80, valueType: 'digit', formItemProps: { rules: [{ required: true, message: '请输入X坐标' }] } },
+    { title: 'Y坐标', dataIndex: ['mesh', 'y'], width: 80, valueType: 'digit', formItemProps: { rules: [{ required: true, message: '请输入Y坐标' }] } },
     { title: '性别', dataIndex: ['heart', '性别'], width: 100, valueEnum: { 男: { text: '男' }, 女: { text: '女' } } },
     { title: '关系', dataIndex: ['heart', '关系'], width: 100 },
     { title: '辈分', dataIndex: ['heart', '辈分'], width: 80 },
@@ -235,21 +235,21 @@ export default function TablePage() {
                   recordCreatorProps={{
                     record: () => ({
                       _id: `temp_${Date.now()}`,
-                      position: { x: 0, y: 0 },
+                      mesh: { x: 0, y: 0 },
                       heart: {
                         名字: '',
                         头像: [],
                         外号: [],
                         性别: null,
                         生日: null,
-                        关系: null,
-                        辈分: null,
-                        身份: null,
-                        初识: null,
+                        关系: '',
+                        辈分: '',
+                        身份: '',
+                        初识: 0,
                         联系: null,
                         联系方式: [],
-                        称呼: null,
-                        阵营: null,
+                        称呼: '',
+                        阵营: '',
                         标签: [],
                         备注: '',
                       },
@@ -267,7 +267,7 @@ export default function TablePage() {
                     onSave: async (rowKey, data) => {
                       const id = rowKey as string;
                       const isNew = id.startsWith('temp_');
-                      const updateData = { position: data.position, heart: data.heart };
+                      const updateData = { mesh: data.mesh, heart: data.heart };
                       if (isNew) {
                         await createRecord('point', updateData);
                       } else {

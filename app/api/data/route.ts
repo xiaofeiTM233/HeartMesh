@@ -100,22 +100,22 @@ export async function POST(request: NextRequest) {
       switch (type) {
         case 'point':
           // 验证必填字段
-          if (!data.position || !data.heart) {
+          if (!data.mesh || !data.heart) {
             return NextResponse.json(
               {
                 success: false,
                 error: '无效的请求',
-                message: 'Point 必须包含 position 和 heart 字段',
+                message: 'Point 必须包含 mesh 和 heart 字段',
               },
               { status: 400 }
             );
           }
-          if (data.position.x == null || data.position.y == null) {
+          if (data.mesh.x == null || data.mesh.y == null) {
             return NextResponse.json(
               {
                 success: false,
                 error: '无效的请求',
-                message: 'position 必须包含 x 和 y 字段',
+                message: 'mesh 必须包含 x 和 y 字段',
               },
               { status: 400 }
             );

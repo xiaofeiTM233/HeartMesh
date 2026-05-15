@@ -74,8 +74,8 @@ export default function EditSidebar({
   const initialFormValues = useMemo(() => {
     if (!selectedPoint) return {};
     return {
-      positionX: selectedPoint.position.x,
-      positionY: selectedPoint.position.y,
+      positionX: selectedPoint.mesh.x,
+      positionY: selectedPoint.mesh.y,
       name: selectedPoint.heart.名字 || '',
       avatars: selectedPoint.heart.头像 || [],
       nicknames: selectedPoint.heart.外号 || [],
@@ -107,9 +107,9 @@ export default function EditSidebar({
 
     // 构建更新数据
     const updateData: Partial<PointData> = {
-      position: {
-        x: values.positionX ?? selectedPoint.position.x,
-        y: values.positionY ?? selectedPoint.position.y,
+      mesh: {
+        x: values.positionX ?? selectedPoint.mesh.x,
+        y: values.positionY ?? selectedPoint.mesh.y,
       },
       heart: {
         ...selectedPoint.heart,
@@ -368,11 +368,11 @@ export default function EditSidebar({
               <Divider />
 
               <Collapse
-                defaultActiveKey={['position', 'heart']}
+                defaultActiveKey={['mesh', 'heart']}
                 items={[
                   {
-                    key: 'position',
-                    label: 'position',
+                    key: 'mesh',
+                    label: 'mesh',
                     children: (
                       <Space style={{ width: '100%' }}>
                         <Form.Item name="positionX" label="x" style={{ marginBottom: 0 }}>

@@ -112,7 +112,7 @@ export default function HexGrid({
   const pointsMap = useMemo(() => {
     const map = new Map<string, PointData>();
     points.forEach(p => {
-      map.set(`${p.position.x},${p.position.y}`, p);
+      map.set(`${p.mesh.x},${p.mesh.y}`, p);
     });
     return map;
   }, [points]);
@@ -162,7 +162,7 @@ export default function HexGrid({
         setPoints([
           {
             _id: '1',
-            position: { x: 0, y: 0 },
+            mesh: { x: 0, y: 0 },
             heart: {
               名字: '中心',
               关系: '朋友',
@@ -185,7 +185,7 @@ export default function HexGrid({
           },
           {
             _id: '2',
-            position: { x: 1, y: 0 },
+            mesh: { x: 1, y: 0 },
             heart: {
               名字: '邻居1',
               关系: '朋友',
@@ -208,7 +208,7 @@ export default function HexGrid({
           },
           {
             _id: '3',
-            position: { x: 0, y: 1 },
+            mesh: { x: 0, y: 1 },
             heart: {
               名字: '邻居2',
               关系: '朋友',
@@ -231,7 +231,7 @@ export default function HexGrid({
           },
           {
             _id: '4',
-            position: { x: -1, y: 1 },
+            mesh: { x: -1, y: 1 },
             heart: {
               名字: '邻居3',
               关系: '朋友',
@@ -254,7 +254,7 @@ export default function HexGrid({
           },
           {
             _id: '5',
-            position: { x: 1, y: -1 },
+            mesh: { x: 1, y: -1 },
             heart: {
               名字: '邻居4',
               关系: '朋友',
@@ -376,23 +376,23 @@ export default function HexGrid({
     const { x: gridX, y: gridY } = pixelToOffset(relativePos.x, relativePos.y);
     
     // 检查该位置是否已有点
-    const existingPoint = points.find(p => p.position.x === gridX && p.position.y === gridY);
+    const existingPoint = points.find(p => p.mesh.x === gridX && p.mesh.y === gridY);
     if (existingPoint) return;
     
     // 创建一个临时点用于编辑
     const tempPoint: PointData = {
       _id: '', // 空ID表示是新创建的点
-      position: { x: gridX, y: gridY },
+      mesh: { x: gridX, y: gridY },
       heart: {
         名字: '',
         头像: [],
         外号: [],
         性别: null,
         生日: null,
-        初识: null,
+        初识: 0,
         联系: null,
-        阵营: null,
-        身份: null,
+        阵营: '',
+        身份: '',
         称呼: '',
         辈分: '',
         关系: '',
@@ -415,7 +415,7 @@ export default function HexGrid({
       // 更新本地状态
       setPoints(prev => prev.map(p =>
         p._id === point._id
-          ? { ...p, position: { x: newCoords.x, y: newCoords.y } }
+          ? { ...p, mesh: { ...p.mesh, x: newCoords.x, y: newCoords.y } }
           : p
       ));
       message.success('点位置已更新');
@@ -502,8 +502,8 @@ export default function HexGrid({
               const endPt = points.find(p => p._id === line.points[1]);
               if (!startPt || !endPt) return null;
 
-              const startAxial = offsetToAxial(startPt.position.x, startPt.position.y);
-              const endAxial = offsetToAxial(endPt.position.x, endPt.position.y);
+              const startAxial = offsetToAxial(startPt.mesh.x, startPt.mesh.y);
+              const endAxial = offsetToAxial(endPt.mesh.x, endPt.mesh.y);
               const startPos = axialToPixel(startAxial.q, startAxial.r);
               const endPos = axialToPixel(endAxial.q, endAxial.r);
 
@@ -552,8 +552,8 @@ export default function HexGrid({
               const endPt = points.find(p => p._id === line.points[1]);
               if (!startPt || !endPt) return null;
 
-              const startAxial = offsetToAxial(startPt.position.x, startPt.position.y);
-              const endAxial = offsetToAxial(endPt.position.x, endPt.position.y);
+              const startAxial = offsetToAxial(startPt.mesh.x, startPt.mesh.y);
+              const endAxial = offsetToAxial(endPt.mesh.x, endPt.mesh.y);
               const startPos = axialToPixel(startAxial.q, startAxial.r);
               const endPos = axialToPixel(endAxial.q, endAxial.r);
 
