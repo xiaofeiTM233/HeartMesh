@@ -666,7 +666,6 @@ export default function EditSidebar({
                               showSearch
                               placeholder="搜索并选择组"
                               style={{ width: '100%' }}
-                              optionFilterProp="label"
                               options={groups.map(g => ({
                                 label: g.name,
                                 value: g._id,
@@ -732,7 +731,6 @@ export default function EditSidebar({
             <Select
               showSearch
               placeholder="搜索并选择终点"
-              optionFilterProp="label"
               options={points
                 .filter(p => p._id !== selectedPoint?._id)
                 .map(p => ({
@@ -782,7 +780,6 @@ export default function EditSidebar({
             <Select
               showSearch
               placeholder="选择起点"
-              optionFilterProp="label"
               options={points.map(p => ({
                 label: p.heart.名字 || p._id,
                 value: p._id,
@@ -793,7 +790,6 @@ export default function EditSidebar({
             <Select
               showSearch
               placeholder="选择终点"
-              optionFilterProp="label"
               options={points.map(p => ({
                 label: p.heart.名字 || p._id,
                 value: p._id,
