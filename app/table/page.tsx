@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Tabs, Card, Spin, App, Popconfirm } from 'antd';
 import { EditableProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -17,6 +18,7 @@ type DataSource = {
 
 export default function TablePage() {
   const { message } = App.useApp();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [dataSource, setDataSource] = useState<DataSource>({
     points: [],
@@ -82,7 +84,9 @@ export default function TablePage() {
 
   // Point 列定义
   const pointColumns = useMemo<ProColumns<PointData>[]>(() => [
-    { title: 'ID', dataIndex: '_id', width: 80, editable: false, copyable: true },
+    { title: 'ID', dataIndex: '_id', width: 120, editable: false, copyable: true, render: (_: unknown, record: PointData) => (
+      <a onClick={() => router.push(`/points/${record._id}`)} style={{ cursor: 'pointer' }}>{record._id}</a>
+    ) },
     { title: '名字', dataIndex: ['heart', '名字'], width: 100, formItemProps: { rules: [{ required: true, message: '请输入名字' }] } },
     { title: 'X坐标', dataIndex: ['mesh', 'x'], width: 80, valueType: 'digit', formItemProps: { rules: [{ required: true, message: '请输入X坐标' }] } },
     { title: 'Y坐标', dataIndex: ['mesh', 'y'], width: 80, valueType: 'digit', formItemProps: { rules: [{ required: true, message: '请输入Y坐标' }] } },
