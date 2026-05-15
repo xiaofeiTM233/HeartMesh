@@ -6,7 +6,7 @@ import { Form, Input, Button, Select, Collapse, Tag, Space, App, Modal, Divider,
 import type { FormInstance } from 'antd/es/form';
 import { PlusOutlined, EditOutlined, DeleteOutlined, LinkOutlined, FolderOutlined, LogoutOutlined, MinusCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import type { PointData, LineData, GroupData } from '@/models/types';
+import type { PointData, LineData, GroupData, BorderValue } from '@/models/types';
 
 export interface PointEditFormProps {
   point: PointData | null;
@@ -79,6 +79,11 @@ export default function PointEditForm({
     return {
       positionX: selectedPoint.mesh.x,
       positionY: selectedPoint.mesh.y,
+      themeColor: selectedPoint.mesh.themeColor || undefined,
+      borderColor: typeof selectedPoint.mesh.borderColor === 'string' ? selectedPoint.mesh.borderColor : (selectedPoint.mesh.borderColor ? JSON.stringify(selectedPoint.mesh.borderColor) : undefined),
+      borderMode: typeof selectedPoint.mesh.borderMode === 'string' ? selectedPoint.mesh.borderMode : (selectedPoint.mesh.borderMode ? JSON.stringify(selectedPoint.mesh.borderMode) : undefined),
+      fontColor: selectedPoint.mesh.fontColor || undefined,
+      fontMode: selectedPoint.mesh.fontMode || undefined,
       name: selectedPoint.heart.名字 || '',
       avatars: selectedPoint.heart.头像 || [],
       nicknames: selectedPoint.heart.外号 || [],
@@ -104,6 +109,17 @@ export default function PointEditForm({
       mesh: {
         x: values.positionX ?? selectedPoint.mesh.x,
         y: values.positionY ?? selectedPoint.mesh.y,
+        themeColor: values.themeColor ?? selectedPoint.mesh.themeColor,
+        borderColor: ((): BorderValue | undefined => {
+          if (!values.borderColor) return selectedPoint.mesh.borderColor;
+          try { return JSON.parse(values.borderColor); } catch { return values.borderColor as string; }
+        })(),
+        borderMode: ((): BorderValue | undefined => {
+          if (!values.borderMode) return selectedPoint.mesh.borderMode;
+          try { return JSON.parse(values.borderMode); } catch { return values.borderMode as string; }
+        })(),
+        fontColor: values.fontColor ?? selectedPoint.mesh.fontColor,
+        fontMode: values.fontMode ?? selectedPoint.mesh.fontMode,
       },
       heart: {
         ...selectedPoint.heart,
@@ -350,14 +366,82 @@ export default function PointEditForm({
                 key: 'mesh',
                 label: 'mesh',
                 children: (
-                  <Space style={{ width: '100%' }}>
-                    <Form.Item name="positionX" label="x" style={{ marginBottom: 0 }}>
-                      <InputNumber style={{ width: 100 }} />
+                  <div className="space-y-3">
+                    <Space style={{ width: '100%' }}>
+                      <Form.Item name="positionX" label="x" style={{ marginBottom: 0 }}>
+                        <InputNumber style={{ width: 100 }} />
+                      </Form.Item>
+                      <Form.Item name="positionY" label="y" style={{ marginBottom: 0 }}>
+                        <InputNumber style={{ width: 100 }} />
+                      </Form.Item>
+                    </Space>
+
+                    {/* 样式字段 */}
+                    <Space wrap>
+                      <Form.Item name="themeColor" label="主题色" style={{ marginBottom: 0 }}>
+                        <ColorPicker format="hex" size="small" />
+                      </Form.Item>
+                      <Form.Item name="fontColor" label="字体颜色" style={{ marginBottom: 0 }}>
+                        <ColorPicker format="hex" size="small" />
+                      </Form.Item>
+                    </Space>
+
+                    <Space wrap>
+                      <Form.Item name="fontMode" label="字体模式" style={{ marginBottom: 0, minWidth: 140 }}>
+                        <Select
+                          allowClear
+                          placeholder="选择模式"
+                          size="small"
+                          options={[
+                            { label: 'NN (正常)', value: 'NN' },
+                            { label: 'NB (加粗)', value: 'NB' },
+                            { label: 'NT (大字+粗)', value: 'NT' },
+                            { label: 'LB (大字)', value: 'LB' },
+                            { label: 'LT (大字+细)', value: 'LT' },
+                            { label: 'SB (小字)', value: 'SB' },
+                            { label: 'ST (小字+细)', value: 'ST' },
+                          ]}
+                          popupMatchSelectWidth={false}
+                        />
+                      </Form.Item>
+                    </Space>
+
+                    {/* 边框配置 */}
+                    <Form.Item name="borderMode" label="边框线型 (BorderMode)" tooltip='字符串如 "S1", "D2"; 或 JSON 如 {"T1":"S1","T2":"D1","B3":"O1"}'>
+                      <Input
+                        placeholder='如 S1 或 {"T1":"S1"}'
+                        size="small"
+                        addonAfter={
+                          <Select
+                            defaultValue=""
+                            size="small"
+                            variant="borderless"
+                            style={{ minWidth: 60 }}
+                            onChange={(val) => form.setFieldValue('borderMode', val || undefined)}
+                            options={[
+                              { label: '(清除)', value: '' },
+                              { label: '全局', value: '__global__' },
+                              { label: '逐边', value: '__t1__' },
+                              { label: '上下', value: '__t2__' },
+                            ]}
+                          />
+                        }
+                      />
                     </Form.Item>
-                    <Form.Item name="positionY" label="y" style={{ marginBottom: 0 }}>
-                      <InputNumber style={{ width: 100 }} />
+
+                    <Form.Item name="borderColor" label="边框颜色 (BorderColor)" tooltip='字符串或 JSON，格式同 BorderMode'>
+                      <Input
+                        placeholder='如 #000 或 {"T1":"#000"}'
+                        size="small"
+                      />
                     </Form.Item>
-                  </Space>
+
+                    <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
+                      BorderMode 字母含义: S=实线, D=虚线, O=点线, W=双线 + 数字 1/2/3(粗细)
+                      <br />
+                      例: S1=标准实线, D2=中等虚线, X=隐藏边框
+                    </div>
+                  </div>
                 ),
               },
               {
