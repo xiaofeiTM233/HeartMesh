@@ -9,13 +9,14 @@ import type { GroupData } from '@/models/Group';
 import { HEX_SIZE, getNeighbors, axialToPixel, pixelToOffset } from '@/lib/hexGrid';
 
 // 格子边框状态
+// T=Top=上，B=Bottom=下，1=左，2=中，3=右
 interface CellBorderStatus {
-  topRight: { hasPoint: boolean; sameGroup: boolean };
-  right: { hasPoint: boolean; sameGroup: boolean };
-  bottomRight: { hasPoint: boolean; sameGroup: boolean };
-  bottomLeft: { hasPoint: boolean; sameGroup: boolean };
-  left: { hasPoint: boolean; sameGroup: boolean };
-  topLeft: { hasPoint: boolean; sameGroup: boolean };
+  T1: { hasPoint: boolean; sameGroup: boolean }; // 上左 (W)
+  T2: { hasPoint: boolean; sameGroup: boolean }; // 上中 (NW)
+  T3: { hasPoint: boolean; sameGroup: boolean }; // 上右 (NE)
+  B1: { hasPoint: boolean; sameGroup: boolean }; // 下左 (SW)
+  B2: { hasPoint: boolean; sameGroup: boolean }; // 下中 (SE)
+  B3: { hasPoint: boolean; sameGroup: boolean }; // 下右 (E)
 }
 
 interface HexCellProps {
@@ -71,15 +72,15 @@ function calculateBorderStatus(
 ): CellBorderStatus {
   const neighbors = getNeighbors(point.position.x, point.position.y);
   // 顺序与 HEX_DIRECTIONS 一致：NE、NW、W、SW、SE、E
-  const directions = ['topRight', 'topLeft', 'left', 'bottomLeft', 'bottomRight', 'right'] as const;
+  const directions = ['T3', 'T2', 'T1', 'B1', 'B2', 'B3'] as const;
   
   const status: CellBorderStatus = {
-    topRight: { hasPoint: false, sameGroup: false },
-    right: { hasPoint: false, sameGroup: false },
-    bottomRight: { hasPoint: false, sameGroup: false },
-    bottomLeft: { hasPoint: false, sameGroup: false },
-    left: { hasPoint: false, sameGroup: false },
-    topLeft: { hasPoint: false, sameGroup: false },
+    T1: { hasPoint: false, sameGroup: false },
+    T2: { hasPoint: false, sameGroup: false },
+    T3: { hasPoint: false, sameGroup: false },
+    B1: { hasPoint: false, sameGroup: false },
+    B2: { hasPoint: false, sameGroup: false },
+    B3: { hasPoint: false, sameGroup: false },
   };
   
   neighbors.forEach((neighbor, index) => {
@@ -126,12 +127,12 @@ function generateBorderPath(
   // 边0(右上边) -> NE, 边1(顶边) -> NW, 边2(左边) -> W
   // 边3(左下边) -> SW, 边4(底边) -> SE, 边5(右边) -> E
   const statusArray = [
-    status.topRight,    // 边0 右上边 -> NE
-    status.topLeft,     // 边1 顶边 -> NW
-    status.left,        // 边2 左边 -> W
-    status.bottomLeft,  // 边3 左下边 -> SW
-    status.bottomRight, // 边4 底边 -> SE
-    status.right,       // 边5 右边 -> E
+    status.T3,    // 边0 右上边 -> NE
+    status.T2,    // 边1 顶边 -> NW
+    status.T1,    // 边2 左边 -> W
+    status.B1,    // 边3 左下边 -> SW
+    status.B2,    // 边4 底边 -> SE
+    status.B3,    // 边5 右边 -> E
   ];
   
   // 为每条边生成边框
