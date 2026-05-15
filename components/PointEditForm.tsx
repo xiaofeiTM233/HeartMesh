@@ -6,7 +6,7 @@ import { Form, Input, Button, Select, Collapse, Tag, Space, App, Modal, Divider,
 import type { FormInstance } from 'antd/es/form';
 import { PlusOutlined, EditOutlined, DeleteOutlined, LinkOutlined, FolderOutlined, LogoutOutlined, MinusCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import type { PointData, LineData, GroupData, BorderValue } from '@/models/types';
+import type { PointData, LineData, GroupData } from '@/models/types';
 
 export interface PointEditFormProps {
   point: PointData | null;
@@ -28,6 +28,208 @@ export interface PointEditFormProps {
   onClose?: () => void;
   /** 独立页面模式下，保存后的回调（如返回列表） */
   onSaved?: () => void;
+}
+
+// ============ 边框配置子组件 ============
+
+const MODE_OPTIONS = [
+  { label: '全局 (所有边统一)', value: 'string' },
+  { label: '上下分组', value: 'T2' },
+  { label: '逐边控制 (6边)', value: 'T1' },
+] as const;
+
+const BORDER_MODE_OPTIONS = [
+  { label: '标准实线 S1', value: 'S1' },
+  { label: '中等实线 S2', value: 'S2' },
+  { label: '粗实线 S3', value: 'S3' },
+  { label: '细虚线 D1', value: 'D1' },
+  { label: '中等虚线 D2', value: 'D2' },
+  { label: '粗虚线 D3', value: 'D3' },
+  { label: '细点线 O1', value: 'O1' },
+  { label: '中等点线 O2', value: 'O2' },
+  { label: '粗点线 O3', value: 'O3' },
+  { label: '细双线 W1', value: 'W1' },
+  { label: '中等双线 W2', value: 'W2' },
+  { label: '粗双线 W3', value: 'W3' },
+  { label: '隐藏 X', value: 'X' },
+];
+
+type BorderConfigMode = typeof MODE_OPTIONS[number]['value'];
+
+// ============ 推断值类型对应的模式 ============
+function inferMode(val: any): BorderConfigMode | null {
+  if (!val) return null;
+  if (typeof val === 'string') return 'string';
+  if ('T1' in val || 'T2' in val || 'T3' in val || 'B1' in val || 'B2' in val || 'B3' in val) return 'T1';
+  if ('T' in val || 'B' in val) return 'T2';
+  return null;
+}
+
+// ============ 根据模式初始化默认结构 ============
+function initValue(mode: BorderConfigMode): any {
+  if (mode === 'string') return 'S1';
+  if (mode === 'T2') return { T: 'S1', B: 'X' };
+  if (mode === 'T1') return { T1: 'S1', T2: 'S1', T3: 'S1', B1: 'X', B2: 'X', B3: 'X' };
+  return undefined;
+}
+
+function initColor(mode: BorderConfigMode): any {
+  if (mode === 'string') return undefined;
+  if (mode === 'T2') return { T: '#000000', B: '#cccccc' };
+  if (mode === 'T1') return { T1: '#000000', T2: '#000000', T3: '#000000', B1: '#cccccc', B2: '#cccccc', B3: '#cccccc' };
+  return undefined;
+}
+
+// ============ 渲染单个字段（根据模式） ============
+function renderFieldByMode(form: FormInstance, fieldName: string | string[], mode: BorderConfigMode, isColor: boolean) {
+  // string 模式
+  if (mode === 'string') {
+    if (isColor) {
+      return (
+        <Form.Item
+          name={fieldName as string}
+          label=""
+          getValueFromEvent={(c: any) => c?.toHexString?.() ?? c}
+          getValueProps={(v: any) => ({ value: v })}
+        >
+          <ColorPicker format="hex" />
+        </Form.Item>
+      );
+    }
+    return (
+      <Form.Item name={fieldName as string} label="">
+        <Select options={BORDER_MODE_OPTIONS} />
+      </Form.Item>
+    );
+  }
+
+  // T2 上下分组模式
+  if (mode === 'T2') {
+    return (
+      <>
+        <div className="bg-blue-50 p-3 rounded mb-2">
+          <div className="text-sm font-medium text-blue-700 mb-2">上边 (T)</div>
+          {isColor ? (
+            <Form.Item name={[...fieldName as string[], 'T']} label="" style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
+              <ColorPicker format="hex" />
+            </Form.Item>
+          ) : (
+            <Form.Item name={[...fieldName as string[], 'T']} label="" style={{ marginBottom: 0 }}>
+              <Select options={BORDER_MODE_OPTIONS} popupMatchSelectWidth={false} />
+            </Form.Item>
+          )}
+        </div>
+        <div className="bg-green-50 p-3 rounded" style={{ marginBottom: 0 }}>
+          <div className="text-sm font-medium text-green-700 mb-2">下边 (B)</div>
+          {isColor ? (
+            <Form.Item name={[...fieldName as string[], 'B']} label="" style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
+              <ColorPicker format="hex" />
+            </Form.Item>
+          ) : (
+            <Form.Item name={[...fieldName as string[], 'B']} label="" style={{ marginBottom: 0 }}>
+              <Select options={BORDER_MODE_OPTIONS} popupMatchSelectWidth={false} />
+            </Form.Item>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  // T1 逐边控制模式
+  const topKeys = ['T1', 'T2', 'T3'];
+  const bottomKeys = ['B1', 'B2', 'B3'];
+  return (
+    <div className="space-y-3">
+      {/* 上排 */}
+      <div className="flex gap-3">
+        {topKeys.map(key => (
+          <div key={key} className={`flex-1 bg-blue-50 p-2 rounded space-y-2`}>
+            <div className="text-xs font-medium text-blue-600">{key}</div>
+            {isColor ? (
+              <Form.Item name={[...(Array.isArray(fieldName) ? fieldName : [fieldName]), key]} style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
+                <ColorPicker format="hex" />
+              </Form.Item>
+            ) : (
+              <Form.Item name={[...(Array.isArray(fieldName) ? fieldName : [fieldName]), key]} style={{ marginBottom: 0 }}>
+                <Select options={BORDER_MODE_OPTIONS} popupMatchSelectWidth={false} />
+              </Form.Item>
+            )}
+          </div>
+        ))}
+      </div>
+      {/* 下排 */}
+      <div className="flex gap-3">
+        {bottomKeys.map(key => (
+          <div key={key} className={`flex-1 bg-green-50 p-2 rounded space-y-2`}>
+            <div className="text-xs font-medium text-green-600">{key}</div>
+            {isColor ? (
+              <Form.Item name={[...(Array.isArray(fieldName) ? fieldName : [fieldName]), key]} style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
+                <ColorPicker format="hex" />
+              </Form.Item>
+            ) : (
+              <Form.Item name={[...(Array.isArray(fieldName) ? fieldName : [fieldName]), key]} style={{ marginBottom: 0 }}>
+                <Select options={BORDER_MODE_OPTIONS} popupMatchSelectWidth={false} />
+              </Form.Item>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============ 边框配置（线型和颜色独立模式） ============
+function BorderConfig({ form }: { form: FormInstance }) {
+  // 线型模式状态
+  const [lineMode, setLineMode] = useState<BorderConfigMode | null>(() => inferMode(form.getFieldValue('borderMode')));
+  // 颜色模式状态
+  const [colorMode, setColorMode] = useState<BorderConfigMode | null>(() => inferMode(form.getFieldValue('borderColor')));
+
+  const handleLineModeChange = (mode: BorderConfigMode | null) => {
+    setLineMode(mode);
+    if (!mode) {
+      form.setFieldValue('borderMode', undefined);
+      return;
+    }
+    form.setFieldValue('borderMode', initValue(mode));
+  };
+
+  const handleColorModeChange = (mode: BorderConfigMode | null) => {
+    setColorMode(mode);
+    if (!mode) {
+      form.setFieldValue('borderColor', undefined);
+      return;
+    }
+    form.setFieldValue('borderColor', initColor(mode));
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* ========== 线型配置 ========== */}
+      <div className="space-y-2">
+        <Form.Item label="线型配置模式" style={{ marginBottom: 4 }}>
+          <Select allowClear placeholder="选择线型配置模式" value={lineMode} onChange={handleLineModeChange} options={MODE_OPTIONS.map(o => ({ ...o }))} />
+        </Form.Item>
+        {lineMode ? renderFieldByMode(form, 'borderMode', lineMode, false) : (
+          <div className="text-xs text-gray-400">未配置线型（使用默认样式）</div>
+        )}
+      </div>
+
+      {/* ========== 颜色配置 ========== */}
+      <div className="space-y-2">
+        <Form.Item label="颜色配置模式" style={{ marginBottom: 4 }}>
+          <Select allowClear placeholder="选择颜色配置模式" value={colorMode} onChange={handleColorModeChange} options={MODE_OPTIONS.map(o => ({ ...o }))} />
+        </Form.Item>
+        {colorMode ? renderFieldByMode(form, 'borderColor', colorMode, true) : (
+          <div className="text-xs text-gray-400">未配置颜色（使用默认样式）</div>
+        )}
+      </div>
+
+      <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
+        线型: S=实线, D=虚线, O=点线, W=双线; 数字 1/2/3 = 细/中/粗; X=隐藏
+      </div>
+    </div>
+  );
 }
 
 export default function PointEditForm({
@@ -80,8 +282,8 @@ export default function PointEditForm({
       positionX: selectedPoint.mesh.x,
       positionY: selectedPoint.mesh.y,
       themeColor: selectedPoint.mesh.themeColor || undefined,
-      borderColor: typeof selectedPoint.mesh.borderColor === 'string' ? selectedPoint.mesh.borderColor : (selectedPoint.mesh.borderColor ? JSON.stringify(selectedPoint.mesh.borderColor) : undefined),
-      borderMode: typeof selectedPoint.mesh.borderMode === 'string' ? selectedPoint.mesh.borderMode : (selectedPoint.mesh.borderMode ? JSON.stringify(selectedPoint.mesh.borderMode) : undefined),
+      borderColor: selectedPoint.mesh.borderColor,
+      borderMode: selectedPoint.mesh.borderMode,
       fontColor: selectedPoint.mesh.fontColor || undefined,
       fontMode: selectedPoint.mesh.fontMode || undefined,
       name: selectedPoint.heart.名字 || '',
@@ -110,14 +312,8 @@ export default function PointEditForm({
         x: values.positionX ?? selectedPoint.mesh.x,
         y: values.positionY ?? selectedPoint.mesh.y,
         themeColor: values.themeColor ?? selectedPoint.mesh.themeColor,
-        borderColor: ((): BorderValue | undefined => {
-          if (!values.borderColor) return selectedPoint.mesh.borderColor;
-          try { return JSON.parse(values.borderColor); } catch { return values.borderColor as string; }
-        })(),
-        borderMode: ((): BorderValue | undefined => {
-          if (!values.borderMode) return selectedPoint.mesh.borderMode;
-          try { return JSON.parse(values.borderMode); } catch { return values.borderMode as string; }
-        })(),
+        borderColor: values.borderColor ?? selectedPoint.mesh.borderColor,
+        borderMode: values.borderMode ?? selectedPoint.mesh.borderMode,
         fontColor: values.fontColor ?? selectedPoint.mesh.fontColor,
         fontMode: values.fontMode ?? selectedPoint.mesh.fontMode,
       },
@@ -377,70 +573,44 @@ export default function PointEditForm({
                     </Space>
 
                     {/* 样式字段 */}
-                    <Space wrap>
-                      <Form.Item name="themeColor" label="主题色" style={{ marginBottom: 0 }}>
-                        <ColorPicker format="hex" size="small" />
-                      </Form.Item>
-                      <Form.Item name="fontColor" label="字体颜色" style={{ marginBottom: 0 }}>
-                        <ColorPicker format="hex" size="small" />
-                      </Form.Item>
-                    </Space>
+                    <div className="flex gap-3">
+                      <div className="flex-1 bg-purple-50 p-3 rounded space-y-2">
+                        <div className="text-sm font-medium text-purple-700">主题色</div>
+                        <Form.Item name="themeColor" style={{ marginBottom: 0 }}>
+                          <ColorPicker format="hex" />
+                        </Form.Item>
+                      </div>
 
-                    <Space wrap>
-                      <Form.Item name="fontMode" label="字体模式" style={{ marginBottom: 0, minWidth: 140 }}>
-                        <Select
-                          allowClear
-                          placeholder="选择模式"
-                          size="small"
-                          options={[
-                            { label: 'NN (正常)', value: 'NN' },
-                            { label: 'NB (加粗)', value: 'NB' },
-                            { label: 'NT (大字+粗)', value: 'NT' },
-                            { label: 'LB (大字)', value: 'LB' },
-                            { label: 'LT (大字+细)', value: 'LT' },
-                            { label: 'SB (小字)', value: 'SB' },
-                            { label: 'ST (小字+细)', value: 'ST' },
-                          ]}
-                          popupMatchSelectWidth={false}
-                        />
-                      </Form.Item>
-                    </Space>
+                      <div className="flex-1 bg-orange-50 p-3 rounded space-y-2">
+                        <div className="text-sm font-medium text-orange-700">字体颜色</div>
+                        <Form.Item name="fontColor" style={{ marginBottom: 0 }}>
+                          <ColorPicker format="hex" />
+                        </Form.Item>
+                      </div>
+
+                      <div className="flex-1 bg-teal-50 p-3 rounded space-y-2">
+                        <div className="text-sm font-medium text-teal-700">字体模式</div>
+                        <Form.Item name="fontMode" style={{ marginBottom: 0 }}>
+                          <Select
+                            allowClear
+                            placeholder="选择模式"
+                            options={[
+                              { label: 'NN (正常)', value: 'NN' },
+                              { label: 'NB (加粗)', value: 'NB' },
+                              { label: 'NT (大字+粗)', value: 'NT' },
+                              { label: 'LB (大字)', value: 'LB' },
+                              { label: 'LT (大字+细)', value: 'LT' },
+                              { label: 'SB (小字)', value: 'SB' },
+                              { label: 'ST (小字+细)', value: 'ST' },
+                            ]}
+                            popupMatchSelectWidth={false}
+                          />
+                        </Form.Item>
+                      </div>
+                    </div>
 
                     {/* 边框配置 */}
-                    <Form.Item name="borderMode" label="边框线型 (BorderMode)" tooltip='字符串如 "S1", "D2"; 或 JSON 如 {"T1":"S1","T2":"D1","B3":"O1"}'>
-                      <Input
-                        placeholder='如 S1 或 {"T1":"S1"}'
-                        size="small"
-                        addonAfter={
-                          <Select
-                            defaultValue=""
-                            size="small"
-                            variant="borderless"
-                            style={{ minWidth: 60 }}
-                            onChange={(val) => form.setFieldValue('borderMode', val || undefined)}
-                            options={[
-                              { label: '(清除)', value: '' },
-                              { label: '全局', value: '__global__' },
-                              { label: '逐边', value: '__t1__' },
-                              { label: '上下', value: '__t2__' },
-                            ]}
-                          />
-                        }
-                      />
-                    </Form.Item>
-
-                    <Form.Item name="borderColor" label="边框颜色 (BorderColor)" tooltip='字符串或 JSON，格式同 BorderMode'>
-                      <Input
-                        placeholder='如 #000 或 {"T1":"#000"}'
-                        size="small"
-                      />
-                    </Form.Item>
-
-                    <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
-                      BorderMode 字母含义: S=实线, D=虚线, O=点线, W=双线 + 数字 1/2/3(粗细)
-                      <br />
-                      例: S1=标准实线, D2=中等虚线, X=隐藏边框
-                    </div>
+                    <BorderConfig form={form} />
                   </div>
                 ),
               },
@@ -615,9 +785,9 @@ export default function PointEditForm({
                                    line.status === 'changed' ? '已变化' : '未知'}
                                 </Tag>
                               </Space>
-                              <Space size="small">
-                                <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEditLineModal(line)} />
-                                <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteLine(line._id)} />
+                              <Space>
+                                <Button type="link" icon={<EditOutlined />} onClick={() => handleOpenEditLineModal(line)} />
+                                <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDeleteLine(line._id)} />
                               </Space>
                             </div>
                             <div className="text-sm text-gray-600">
@@ -656,9 +826,9 @@ export default function PointEditForm({
                       <div className="p-2 border rounded hover:bg-gray-50">
                         <div className="flex items-center justify-between mb-1">
                           <Tag color={pointGroup.color}>{pointGroup.name}</Tag>
-                          <Space size="small">
-                            <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEditGroupModal(pointGroup)} />
-                            <Button type="link" size="small" danger icon={<LogoutOutlined />} onClick={async () => {
+                          <Space>
+                            <Button type="link" icon={<EditOutlined />} onClick={() => handleOpenEditGroupModal(pointGroup)} />
+                            <Button type="link" danger icon={<LogoutOutlined />} onClick={async () => {
                               if (selectedPoint) {
                                 try {
                                   await onUpdatePoint(selectedPoint, { heart: { ...selectedPoint.heart, 阵营: '' } });
