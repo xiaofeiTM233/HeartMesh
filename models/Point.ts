@@ -2,7 +2,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 // 逐边控制模式
-export type BorderPerEdge = {
+export type BorderT1 = {
   T1?: string; // 上左 (W)
   T2?: string; // 上中 (NW)
   T3?: string; // 上右 (NE)
@@ -12,23 +12,30 @@ export type BorderPerEdge = {
 };
 
 // 上下分组控制模式
-export type BorderTopBottom = {
+export type BorderT2 = {
   T?: string; // 上
   B?: string; // 下
 };
 
 // borderColor / borderMode 的3种格式
-export type BorderValue = BorderPerEdge | BorderTopBottom | string;
+export type BorderValue = BorderT1 | BorderT2 | string;
 
-// 验证 BorderValue 是否为合法的逐边控制
-function isBorderPerEdge(value: unknown): value is BorderPerEdge {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+// 边框线型模式
+// 线型字母：S=solid, D=dashed, O=dotted, W=double
+// 粗细数字：1=细, 2=普通, 3=粗
+// 隐藏：X
+export type BorderMode = 'S1' | 'S2' | 'S3' | 'D1' | 'D2' | 'D3' | 'O1' | 'O2' | 'O3' | 'W1' | 'W2' | 'W3' | 'X';
 
-// 验证 BorderValue 是否为合法的上下分组控制
-function isBorderTopBottom(value: unknown): value is BorderTopBottom {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+// 字体模式
+// N=Normal, L=Larger, S=Smaller
+// B=Bold, T=Thin
+export type FontMode = 'NN' | 'NB' | 'NT' | 'LB' | 'LT' | 'SB' | 'ST';
+
+// 默认值
+export const MESH_DEFAULTS = {
+  THEME_COLOR: '#3b82f6',
+  FONT_COLOR: '#1f2937',
+} as const;
 
 // Point 文档接口
 export interface IPoint extends Document {
@@ -39,7 +46,7 @@ export interface IPoint extends Document {
     borderColor?: BorderValue;
     borderMode?: BorderValue;
     fontColor?: string;
-    fontMode?: string;
+    fontMode?: FontMode;
   };
   heart: {
     名字: string;
@@ -82,7 +89,7 @@ export interface PointData {
     borderColor?: BorderValue;
     borderMode?: BorderValue;
     fontColor?: string;
-    fontMode?: string;
+    fontMode?: FontMode;
   };
   heart: {
     名字: string;
@@ -121,10 +128,10 @@ const PointSchema: Schema = new Schema(
     mesh: {
       x: { type: Number, required: true },
       y: { type: Number, required: true },
-      themeColor: { type: String, default: null },
+      themeColor: { type: String, default: MESH_DEFAULTS.THEME_COLOR },
       borderColor: { type: Schema.Types.Mixed, default: null },
       borderMode: { type: Schema.Types.Mixed, default: null },
-      fontColor: { type: String, default: null },
+      fontColor: { type: String, default: MESH_DEFAULTS.FONT_COLOR },
       fontMode: { type: String, default: null },
     },
     heart: {

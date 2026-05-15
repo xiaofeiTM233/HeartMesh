@@ -4,9 +4,13 @@
 import { useMemo, useRef, useCallback } from 'react';
 import { Group, RegularPolygon, Text, Line } from 'react-konva';
 import { KonvaEventObject } from 'konva/lib/Node';
-import type { PointData, BorderValue, BorderPerEdge, BorderTopBottom } from '@/models/Point';
-import type { GroupData } from '@/models/Group';
 import { HEX_SIZE, getNeighbors, axialToPixel, pixelToOffset } from '@/lib/hexGrid';
+import { MESH_DEFAULTS } from '@/models/Point';
+import type { PointData, BorderValue, BorderT1, BorderT2, BorderMode, FontMode } from '@/models/Point';
+import type { GroupData } from '@/models/Group';
+
+const BORDER_THIN_WIDTH = 2;
+const BORDER_BOLD_WIDTH = 4;
 
 // 格子边框状态
 // T=Top=上，B=Bottom=下，1=左，2=中，3=右
@@ -29,10 +33,125 @@ interface HexCellProps {
   onDragEnd?: (point: PointData, newCoords: { x: number; y: number }) => void;
 }
 
-// 默认颜色
-const DEFAULT_COLOR = '#3b82f6'; // 蓝色
-const BORDER_THICK_WIDTH = 4;  // 粗边框（无相邻点）
-const BORDER_THIN_WIDTH = 2;   // 细边框（有相邻点）
+/**
+ * 解析 BorderMode 为 Konva Line 的样式属性
+ * 线型字母：S=solid, D=dashed, O=dotted, W=double
+ * 粗细数字：1=细, 2=普通, 3=粗
+ * 隐藏：X
+ */
+function resolveBorderMode(mode: BorderMode | string): { dash: number[]; strokeWidth: number; hidden: boolean } {
+  if (mode === 'X') {
+    return { dash: [], strokeWidth: 0, hidden: true };
+  }
+
+  const lineStyle = mode[0]; // S, D, O, W
+  const boldness = parseInt(mode[1]); // 1, 2, 3
+
+  // 粗细映射：1=细(2), 2=普通(4), 3=粗(6)
+  const widthMap: Record<number, number> = { 1: BORDER_THIN_WIDTH, 2: BORDER_BOLD_WIDTH, 3: 6 };
+  const strokeWidth = widthMap[boldness] ?? BORDER_BOLD_WIDTH;
+
+  // 线型映射
+  switch (lineStyle) {
+    case 'S': // 实线
+      return { dash: [], strokeWidth, hidden: false };
+    case 'D': // 虚线
+      return { dash: [8, 4], strokeWidth, hidden: false };
+    case 'O': // 点线
+      return { dash: [2, 4], strokeWidth, hidden: false };
+    case 'W': // 双线
+      return { dash: [], strokeWidth: strokeWidth * 1.5, hidden: false };
+    default:
+      return { dash: [], strokeWidth: BORDER_BOLD_WIDTH, hidden: false };
+  }
+}
+
+/**
+ * 从 BorderValue 解析每条边的边框模式
+ * 支持三种格式：逐边 {T1,T2,T3,B1,B2,B3}、上下 {T,B}、全局 string
+ */
+function resolveBorderModes(
+  borderModeValue: BorderValue | undefined,
+  borderStatus: CellBorderStatus
+): Record<keyof CellBorderStatus, { dash: number[]; strokeWidth: number; hidden: boolean }> {
+  const defaultMode = { dash: [], strokeWidth: BORDER_BOLD_WIDTH, hidden: false };
+  const result: Record<keyof CellBorderStatus, { dash: number[]; strokeWidth: number; hidden: boolean }> = {
+    T1: { ...defaultMode },
+    T2: { ...defaultMode },
+    T3: { ...defaultMode },
+    B1: { ...defaultMode },
+    B2: { ...defaultMode },
+    B3: { ...defaultMode },
+  };
+
+  // 先根据 borderStatus 设置默认的粗/细边框
+  const keys = Object.keys(result) as (keyof CellBorderStatus)[];
+  keys.forEach(key => {
+    if (borderStatus[key].sameGroup) {
+      result[key] = { dash: [], strokeWidth: 2, hidden: false };
+    } else if (borderStatus[key].hasPoint) {
+      result[key] = { dash: [], strokeWidth: BORDER_THIN_WIDTH, hidden: false };
+    }
+  });
+
+  if (!borderModeValue) return result;
+
+  if (typeof borderModeValue === 'string') {
+    // 全局：所有边使用同一模式
+    const resolved = resolveBorderMode(borderModeValue);
+    keys.forEach(key => { result[key] = resolved; });
+  } else if ('T1' in borderModeValue || 'T2' in borderModeValue || 'T3' in borderModeValue || 'B1' in borderModeValue || 'B2' in borderModeValue || 'B3' in borderModeValue) {
+    // 逐边控制
+    const T1 = borderModeValue as BorderT1;
+    if (T1.T1) result.T1 = resolveBorderMode(T1.T1);
+    if (T1.T2) result.T2 = resolveBorderMode(T1.T2);
+    if (T1.T3) result.T3 = resolveBorderMode(T1.T3);
+    if (T1.B1) result.B1 = resolveBorderMode(T1.B1);
+    if (T1.B2) result.B2 = resolveBorderMode(T1.B2);
+    if (T1.B3) result.B3 = resolveBorderMode(T1.B3);
+  } else if ('T' in borderModeValue || 'B' in borderModeValue) {
+    // 上下分组控制
+    const tb = borderModeValue as BorderT2;
+    if (tb.T) { const resolved = resolveBorderMode(tb.T); result.T1 = resolved; result.T2 = { ...resolved }; result.T3 = { ...resolved }; }
+    if (tb.B) { const resolved = resolveBorderMode(tb.B); result.B1 = resolved; result.B2 = { ...resolved }; result.B3 = { ...resolved }; }
+  }
+
+  return result;
+}
+
+/**
+ * 解析 FontMode 为 Konva Text 的样式属性
+ * N=Normal, L=Larger, S=Smaller
+ * B=Bold, T=Thin
+ */
+function resolveFontStyle(
+  fontMode: FontMode | undefined,
+  baseFontSize: number
+): { fontSize: number; fontStyle: string } {
+  if (!fontMode) {
+    return { fontSize: baseFontSize, fontStyle: 'normal' };
+  }
+
+  // 尺寸映射
+  let sizeMultiplier = 1;
+  const sizeCode = fontMode[0];
+  switch (sizeCode) {
+    case 'L': sizeMultiplier = 1.3; break;
+    case 'S': sizeMultiplier = 0.8; break;
+    case 'N': default: sizeMultiplier = 1; break;
+  }
+
+  // 粗细映射
+  let style = 'normal';
+  const weightCode = fontMode[1];
+  switch (weightCode) {
+    case 'B': style = 'bold'; break;
+    case 'T': style = 'lighter'; break;
+    default: style = 'normal'; break;
+  }
+
+  return { fontSize: Math.round(baseFontSize * sizeMultiplier), fontStyle: style };
+}
 
 /**
  * 根据填充颜色计算边框颜色
@@ -104,18 +223,18 @@ function calculateBorderStatus(
  */
 function resolveBorderColors(
   borderValue: BorderValue | undefined,
-  fallbackThick: string,
+  fallbackBold: string,
   fallbackThin: string,
   fillColor: string,
   borderStatus: CellBorderStatus
 ): Record<keyof CellBorderStatus, string> {
   const result: Record<keyof CellBorderStatus, string> = {
-    T1: fallbackThick,
-    T2: fallbackThick,
-    T3: fallbackThick,
-    B1: fallbackThick,
-    B2: fallbackThick,
-    B3: fallbackThick,
+    T1: fallbackBold,
+    T2: fallbackBold,
+    T3: fallbackBold,
+    B1: fallbackBold,
+    B2: fallbackBold,
+    B3: fallbackBold,
   };
 
   // 先根据 borderStatus 设置默认的粗/细边框
@@ -135,20 +254,19 @@ function resolveBorderColors(
     keys.forEach(key => { result[key] = borderValue; });
   } else if ('T1' in borderValue || 'T2' in borderValue || 'T3' in borderValue || 'B1' in borderValue || 'B2' in borderValue || 'B3' in borderValue) {
     // 逐边控制
-    const perEdge = borderValue as BorderPerEdge;
-    if (perEdge.T1) result.T1 = perEdge.T1;
-    if (perEdge.T2) result.T2 = perEdge.T2;
-    if (perEdge.T3) result.T3 = perEdge.T3;
-    if (perEdge.B1) result.B1 = perEdge.B1;
-    if (perEdge.B2) result.B2 = perEdge.B2;
-    if (perEdge.B3) result.B3 = perEdge.B3;
+    const T1 = borderValue as BorderT1;
+    if (T1.T1) result.T1 = T1.T1;
+    if (T1.T2) result.T2 = T1.T2;
+    if (T1.T3) result.T3 = T1.T3;
+    if (T1.B1) result.B1 = T1.B1;
+    if (T1.B2) result.B2 = T1.B2;
+    if (T1.B3) result.B3 = T1.B3;
   } else if ('T' in borderValue || 'B' in borderValue) {
     // 上下分组控制
-    const tb = borderValue as BorderTopBottom;
-    if (tb.T) { result.T1 = tb.T; result.T2 = tb.T; result.T3 = tb.T; }
-    if (tb.B) { result.B1 = tb.B; result.B2 = tb.B; result.B3 = tb.B; }
+    const T2 = borderValue as BorderT2;
+    if (T2.T) { result.T1 = T2.T; result.T2 = T2.T; result.T3 = T2.T; }
+    if (T2.B) { result.B1 = T2.B; result.B2 = T2.B; result.B3 = T2.B; }
   }
-
   return result;
 }
 
@@ -160,16 +278,19 @@ function generateBorderPath(
   status: CellBorderStatus,
   size: number,
   fillColor: string,
-  borderColorValue?: BorderValue
-): Array<{ points: number[]; strokeWidth: number; stroke: string }> {
-  const borders: Array<{ points: number[]; strokeWidth: number; stroke: string }> = [];
+  borderColorValue?: BorderValue,
+  borderModeValue?: BorderValue
+): Array<{ points: number[]; strokeWidth: number; stroke: string; dash: number[]; hidden: boolean }> {
+  const borders: Array<{ points: number[]; strokeWidth: number; stroke: string; dash: number[]; hidden: boolean }> = [];
   
   // 根据填充颜色计算默认边框颜色
-  const thickColor = getBorderColor(fillColor, 0.2);   // 粗边框加深20%
+  const BoldColor = getBorderColor(fillColor, 0.2);   // 粗边框加深20%
   const thinColor = getBorderColor(fillColor, -0.1);   // 细边框变浅10%
   
   // 解析每条边的边框颜色
-  const resolvedColors = resolveBorderColors(borderColorValue, thickColor, thinColor, fillColor, status);
+  const resolvedColors = resolveBorderColors(borderColorValue, BoldColor, thinColor, fillColor, status);
+  // 解析每条边的边框模式
+  const resolvedModes = resolveBorderModes(borderModeValue, status);
   
   // 平顶六边形的6个顶点坐标（相对于中心，从右边开始顺时针）
   const vertices = [
@@ -189,40 +310,27 @@ function generateBorderPath(
   // 为每条边生成边框
   for (let i = 0; i < 6; i++) {
     const edgeKey = edgeKeys[i];
-    const s = status[edgeKey];
+    const mode = resolvedModes[edgeKey];
     const startVertex = vertices[i];
     const endVertex = vertices[(i + 1) % 6];
     
-    if (s.sameGroup) {
-      // 同一组：同色边框
-      borders.push({
-        points: [startVertex.x, startVertex.y, endVertex.x, endVertex.y],
-        strokeWidth: 2,
-        stroke: resolvedColors[edgeKey],
-      });
-    } else if (s.hasPoint) {
-      // 有相邻点但不同组：细边框
-      borders.push({
-        points: [startVertex.x, startVertex.y, endVertex.x, endVertex.y],
-        strokeWidth: BORDER_THIN_WIDTH,
-        stroke: resolvedColors[edgeKey],
-      });
-    } else {
-      // 无相邻点：粗边框
-      borders.push({
-        points: [startVertex.x, startVertex.y, endVertex.x, endVertex.y],
-        strokeWidth: BORDER_THICK_WIDTH,
-        stroke: resolvedColors[edgeKey],
-      });
-    }
+    if (mode.hidden) continue; // 隐藏边框，跳过
+
+    borders.push({
+      points: [startVertex.x, startVertex.y, endVertex.x, endVertex.y],
+      strokeWidth: mode.strokeWidth,
+      stroke: resolvedColors[edgeKey],
+      dash: mode.dash,
+      hidden: false,
+    });
   }
   
   return borders;
 }
 
 export default function HexCell({ point, group, allPoints, scale, draggable = false, onClick, onDragEnd }: HexCellProps) {
-  const fillColor = point.mesh.themeColor || group?.color || DEFAULT_COLOR;
-  const fontColor = point.mesh.fontColor || '#1f2937';
+  const fillColor = point.mesh.themeColor || group?.color || MESH_DEFAULTS.THEME_COLOR;
+  const fontColor = point.mesh.fontColor || MESH_DEFAULTS.FONT_COLOR;
   const groupRef = useRef<any>(null);
   
   // 计算边框状态
@@ -233,8 +341,8 @@ export default function HexCell({ point, group, allPoints, scale, draggable = fa
   
   // 生成边框数据
   const borders = useMemo(
-    () => generateBorderPath(borderStatus, HEX_SIZE, fillColor, point.mesh.borderColor),
-    [borderStatus, fillColor, point.mesh.borderColor]
+    () => generateBorderPath(borderStatus, HEX_SIZE, fillColor, point.mesh.borderColor, point.mesh.borderMode),
+    [borderStatus, fillColor, point.mesh.borderColor, point.mesh.borderMode]
   );
   
   // 计算像素坐标（使用统一的坐标转换函数）
@@ -273,7 +381,11 @@ export default function HexCell({ point, group, allPoints, scale, draggable = fa
   
   // Avatar 尺寸（根据格子大小调整）
   const avatarSize = HEX_SIZE * 0.8;
-  const fontSize = Math.max(8, 10 * scale);
+  const baseFontSize = Math.max(8, 10 * scale);
+  const { fontSize, fontStyle } = useMemo(
+    () => resolveFontStyle(point.mesh.fontMode, baseFontSize),
+    [point.mesh.fontMode, baseFontSize]
+  );
   
   return (
     <Group 
@@ -295,23 +407,14 @@ export default function HexCell({ point, group, allPoints, scale, draggable = fa
         rotation={30}
       />
       
-      {/* 边框：先渲染细边框，再渲染粗边框（粗覆盖细） */}
-      {borders.filter(b => b.strokeWidth === BORDER_THIN_WIDTH).map((border, index) => (
+      {/* 边框 */}
+      {borders.map((border, index) => (
         <Line
-          key={`thin-${index}`}
+          key={`border-${index}`}
           points={border.points}
           stroke={border.stroke}
           strokeWidth={border.strokeWidth}
-          lineCap="round"
-          lineJoin="round"
-        />
-      ))}
-      {borders.filter(b => b.strokeWidth === BORDER_THICK_WIDTH).map((border, index) => (
-        <Line
-          key={`thick-${index}`}
-          points={border.points}
-          stroke={border.stroke}
-          strokeWidth={border.strokeWidth}
+          dash={border.dash}
           lineCap="round"
           lineJoin="round"
         />
@@ -336,6 +439,7 @@ export default function HexCell({ point, group, allPoints, scale, draggable = fa
         <Text
           text={point.heart.名字}
           fontSize={fontSize}
+          fontStyle={fontStyle}
           fill={fontColor}
           align="center"
           verticalAlign="middle"
