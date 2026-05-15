@@ -5,9 +5,7 @@ import { useState, useMemo } from 'react';
 import { Form, Input, Button, Select, Collapse, Tag, Space, App, Drawer, Modal, Divider, Empty, ColorPicker, DatePicker, InputNumber } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, LinkOutlined, FolderOutlined, LogoutOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import type { PointData } from '@/models/Point';
-import type { LineData } from '@/models/Line';
-import type { GroupData } from '@/models/Group';
+import type { PointData, LineData, GroupData } from '@/models/types';
 
 interface EditSidebarProps {
   points: PointData[];

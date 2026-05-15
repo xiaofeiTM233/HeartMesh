@@ -5,9 +5,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Tabs, Card, Spin, App, Popconfirm } from 'antd';
 import { EditableProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import type { PointData } from '@/models/Point';
-import type { LineData } from '@/models/Line';
-import type { GroupData } from '@/models/Group';
+import type { PointData } from '@/models/types';
+import type { LineData } from '@/models/types';
+import type { GroupData } from '@/models/types';
 
 type DataSource = {
   points: PointData[];

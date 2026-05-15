@@ -11,17 +11,6 @@ export interface ILine extends Document {
   updatedAt: Date;
 }
 
-// API 数据类型
-export interface LineData {
-  _id: string;
-  points: string[];
-  relations: string[];
-  status: 'unchanged' | 'changed' | 'unknown';
-  color: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 // Line Schema
 const LineSchema: Schema = new Schema(
   {

@@ -15,9 +15,9 @@ import {
   pixelToOffset,
   offsetToAxial,
 } from '@/lib/hexGrid';
-import type { PointData } from '@/models/Point';
-import type { LineData } from '@/models/Line';
-import type { GroupData } from '@/models/Group';
+import type { PointData } from '@/models/types';
+import type { LineData } from '@/models/types';
+import type { GroupData } from '@/models/types';
 
 // 颜色配置
 const BG_COLOR = '#9ca3af';      // 灰色背景

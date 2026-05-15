@@ -1,9 +1,9 @@
 // app/api/data/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
-import Point, { PointData } from '@/models/Point';
-import Line, { LineData } from '@/models/Line';
-import Group, { GroupData } from '@/models/Group';
+import Point from '@/models/Point';
+import Line from '@/models/Line';
+import Group from '@/models/Group';
 import mongoose from 'mongoose';
 
 /**

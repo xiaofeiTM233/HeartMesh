@@ -5,9 +5,9 @@ import { useMemo, useRef, useCallback } from 'react';
 import { Group, RegularPolygon, Text, Line } from 'react-konva';
 import { KonvaEventObject } from 'konva/lib/Node';
 import { HEX_SIZE, getNeighbors, axialToPixel, pixelToOffset } from '@/lib/hexGrid';
-import { MESH_DEFAULTS } from '@/models/Point';
-import type { PointData, BorderValue, BorderT1, BorderT2, BorderMode, FontMode } from '@/models/Point';
-import type { GroupData } from '@/models/Group';
+import { MESH_DEFAULTS } from '@/models/types';
+import type { PointData, BorderValue, BorderT1, BorderT2, BorderMode, FontMode } from '@/models/types';
+import type { GroupData } from '@/models/types';
 
 const BORDER_THIN_WIDTH = 2;
 const BORDER_BOLD_WIDTH = 4;

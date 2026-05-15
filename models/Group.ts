@@ -12,18 +12,6 @@ export interface IGroup extends Document {
   updatedAt: Date;
 }
 
-// API 数据类型
-export interface GroupData {
-  _id: string;
-  name: string;
-  color: string;
-  status: 'unchanged' | 'changed' | 'unknown';
-  parent: string | null;
-  points: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 // Group Schema
 const GroupSchema: Schema = new Schema(
   {
