@@ -36,7 +36,7 @@ export interface IPoint extends Document {
     }>;
     标签: Array<{
       name: string;
-      status: string;
+      status: 'unchanged' | 'changed' | 'unknown';
       timestamp: number;
     }>;
     备注: string;
@@ -79,7 +79,7 @@ const PointSchema: Schema = new Schema(
       }],
       标签: [{
         name: { type: String, default: '' },
-        status: { type: String, default: '' },
+        status: { type: String, enum: ['unchanged', 'changed', 'unknown'], required: true, default: 'unchanged' },
         timestamp: { type: Number, default: null },
       }],
       备注: { type: String, default: '' },
