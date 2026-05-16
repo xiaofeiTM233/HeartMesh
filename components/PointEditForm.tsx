@@ -576,14 +576,14 @@ export default function PointEditForm({
                     <div className="flex gap-3">
                       <div className="flex-1 bg-purple-50 p-3 rounded space-y-2">
                         <div className="text-sm font-medium text-purple-700">主题色</div>
-                        <Form.Item name="themeColor" style={{ marginBottom: 0 }}>
+                        <Form.Item name="themeColor" style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
                           <ColorPicker format="hex" />
                         </Form.Item>
                       </div>
 
                       <div className="flex-1 bg-orange-50 p-3 rounded space-y-2">
                         <div className="text-sm font-medium text-orange-700">字体颜色</div>
-                        <Form.Item name="fontColor" style={{ marginBottom: 0 }}>
+                        <Form.Item name="fontColor" style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
                           <ColorPicker format="hex" />
                         </Form.Item>
                       </div>
