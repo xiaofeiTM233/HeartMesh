@@ -110,11 +110,11 @@ function renderFieldByMode(form: FormInstance, fieldName: string | string[], mod
         <div className="bg-blue-50 p-3 rounded mb-2">
           <div className="text-sm font-medium text-blue-700 mb-2">上边 (T)</div>
           {isColor ? (
-            <Form.Item name={[...fieldName as string[], 'T']} label="" style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
+            <Form.Item name={[...(Array.isArray(fieldName) ? fieldName : [fieldName]), 'T']} label="" style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
               <ColorPicker format="hex" />
             </Form.Item>
           ) : (
-            <Form.Item name={[...fieldName as string[], 'T']} label="" style={{ marginBottom: 0 }}>
+            <Form.Item name={[...(Array.isArray(fieldName) ? fieldName : [fieldName]), 'T']} label="" style={{ marginBottom: 0 }}>
               <Select options={BORDER_MODE_OPTIONS} popupMatchSelectWidth={false} />
             </Form.Item>
           )}
@@ -122,11 +122,11 @@ function renderFieldByMode(form: FormInstance, fieldName: string | string[], mod
         <div className="bg-green-50 p-3 rounded" style={{ marginBottom: 0 }}>
           <div className="text-sm font-medium text-green-700 mb-2">下边 (B)</div>
           {isColor ? (
-            <Form.Item name={[...fieldName as string[], 'B']} label="" style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
+            <Form.Item name={[...(Array.isArray(fieldName) ? fieldName : [fieldName]), 'B']} label="" style={{ marginBottom: 0 }} getValueFromEvent={(c: any) => c?.toHexString?.() ?? c} getValueProps={(v: any) => ({ value: v })}>
               <ColorPicker format="hex" />
             </Form.Item>
           ) : (
-            <Form.Item name={[...fieldName as string[], 'B']} label="" style={{ marginBottom: 0 }}>
+            <Form.Item name={[...(Array.isArray(fieldName) ? fieldName : [fieldName]), 'B']} label="" style={{ marginBottom: 0 }}>
               <Select options={BORDER_MODE_OPTIONS} popupMatchSelectWidth={false} />
             </Form.Item>
           )}
