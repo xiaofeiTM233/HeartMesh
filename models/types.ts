@@ -69,7 +69,7 @@ export interface PointData {
     }>;
     标签: Array<{
       name: string;
-      status: string;
+      status: 'unchanged' | 'changed' | 'unknown';
       timestamp: number;
     }>;
     备注: string;

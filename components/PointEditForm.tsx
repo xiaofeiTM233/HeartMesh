@@ -720,15 +720,16 @@ export default function PointEditForm({
                                   <Input placeholder="标签名" />
                                 </Form.Item>
                                 <Form.Item {...restField} name={[name, 'status']} style={{ marginBottom: 0 }}>
-                                  <Select placeholder="status" style={{ width: 100 }} options={[
-                                    { label: '有效', value: '有效' },
-                                    { label: '无效', value: '无效' },
+                                  <Select placeholder="status" style={{ width: 120 }} options={[
+                                    { label: '未改变', value: 'unchanged' },
+                                    { label: '已改变', value: 'changed' },
+                                    { label: '未知', value: 'unknown' },
                                   ]} />
                                 </Form.Item>
                                 <MinusCircleOutlined style={{ marginTop: 8 }} onClick={() => remove(name)} />
                               </Space>
                             ))}
-                            <Button type="dashed" onClick={() => add({ name: '', status: '有效', timestamp: Date.now() })} block icon={<PlusOutlined />}>
+                            <Button type="dashed" onClick={() => add({ name: '', status: 'unchanged', timestamp: Date.now() })} block icon={<PlusOutlined />}>
                               添加
                             </Button>
                           </>
